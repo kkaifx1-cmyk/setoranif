@@ -241,7 +241,7 @@ export function SetoranForm({
     }
   };
 
-  // WhatsApp text template for parents
+  // WhatsApp text template with encouragement for colleagues
   const generateWhatsAppText = (rec: SetoranRecord) => {
     return (
       `*LAPORAN SETORAN - ONE DAY ONE JUZ*\n` +
@@ -252,7 +252,7 @@ export function SetoranForm({
       `📖 *Capaian:* ${rec.capaianSummary}\n` +
       `✍️ *Pengampu:* ${rec.recorderName}\n` +
       `-----------------------------------------\n` +
-      `_Barakallahu fiik, semoga senantiasa istiqomah membaca Al-Qur'an._`
+      `Alhamdulillah, saya telah menyelesaikan tilawah hari ini. Ayo Bapak/Ibu yang lainnya semangat, mari kita tuntaskan bersama! ✨`
     );
   };
 
@@ -462,7 +462,7 @@ export function SetoranForm({
               className="flex items-center gap-1.5 text-xs font-bold tracking-tight text-zinc-800"
             >
               <UserIcon className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
-              <span>Nama Santri *</span>
+              <span>Nama *</span>
             </label>
 
             {onRefreshSheetStudents && (
@@ -490,7 +490,7 @@ export function SetoranForm({
                 type="text"
                 required
                 autoComplete="off"
-                placeholder="Pilih atau ketik nama santri..."
+                placeholder="Ketik atau pilih nama..."
                 value={studentName}
                 onFocus={() => setIsComboboxOpen(true)}
                 onClick={() => setIsComboboxOpen(true)}
@@ -520,7 +520,7 @@ export function SetoranForm({
             {isComboboxOpen && (
               <div
                 role="listbox"
-                aria-label="Daftar nama santri"
+                aria-label="Daftar nama"
                 className="absolute left-0 right-0 top-full z-40 mt-1.5 max-h-56 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1.5 shadow-lg"
               >
                 {filteredStudents.length > 0 ? (

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Smartphone } from 'lucide-react';
+import { Download } from 'lucide-react';
 
 interface NavbarProps {
   onOpenSheetModal?: () => void;
@@ -43,12 +43,11 @@ export function Navbar({ onOpenInstall, isInstalled }: NavbarProps) {
           {onOpenInstall && !isInstalled && (
             <button
               onClick={onOpenInstall}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition cursor-pointer active:scale-95 shadow-2xs"
-              title="Pasang di HP Android"
-              aria-label="Unduh di Android"
+              className="flex items-center justify-center p-1.5 rounded-full text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition cursor-pointer active:scale-95 shadow-2xs"
+              title="Unduh Aplikasi"
+              aria-label="Unduh Aplikasi"
             >
-              <Smartphone className="w-3.5 h-3.5 text-emerald-700" />
-              <span className="text-[11px] font-semibold">Unduh di Android</span>
+              <Download className="w-3.5 h-3.5 text-emerald-700" />
             </button>
           )}
 

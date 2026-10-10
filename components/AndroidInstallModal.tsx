@@ -1,18 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  X,
-  Smartphone,
-  CheckCircle2,
-  Sparkles,
-  Download,
-  Share2,
-  MoreVertical,
-  Layers,
-  ArrowRight,
-} from 'lucide-react';
+import { X, Download, CheckCircle2 } from 'lucide-react';
 import Image from 'next/image';
 
 interface AndroidInstallModalProps {
@@ -30,6 +20,8 @@ export function AndroidInstallModal({
   isInstallable,
   isInstalled,
 }: AndroidInstallModalProps) {
+  const [showFallbackHint, setShowFallbackHint] = useState(false);
+
   if (!isOpen) return null;
 
   const handleInstallClick = async () => {
@@ -37,8 +29,11 @@ export function AndroidInstallModal({
       const success = await onInstall();
       if (success) {
         onClose();
+        return;
       }
     }
+    // If browser didn't open prompt or in manual mode, show brief guidance
+    setShowFallbackHint(true);
   };
 
   return (
@@ -48,31 +43,31 @@ export function AndroidInstallModal({
         <div className="absolute inset-0" onClick={onClose} />
 
         <motion.div
-          initial={{ opacity: 0, y: 40, scale: 0.98 }}
+          initial={{ opacity: 0, y: 30, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 30, scale: 0.98 }}
+          exit={{ opacity: 0, y: 20, scale: 0.98 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-md bg-white rounded-t-3xl sm:rounded-2xl border border-zinc-200 shadow-2xl overflow-hidden z-10 max-h-[90vh] flex flex-col"
+          className="relative w-full max-w-sm bg-white rounded-t-3xl sm:rounded-2xl border border-zinc-200 shadow-2xl overflow-hidden z-10"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-zinc-100 bg-linear-to-r from-emerald-50/60 to-white">
+          <div className="flex items-center justify-between px-5 pt-5 pb-3">
             <div className="flex items-center gap-3">
-              <div className="relative w-11 h-11 rounded-xl bg-white border border-zinc-200 shadow-xs flex items-center justify-center overflow-hidden p-1">
+              <div className="relative w-10 h-10 rounded-xl bg-white border border-zinc-200 shadow-xs flex items-center justify-center overflow-hidden p-1 shrink-0">
                 <Image
                   src="https://infosmait.ihsanulfikri.sch.id/wp-content/uploads/2026/10/Untitled-design-768x431.png"
                   alt="SMAIT Ihsanul Fikri"
-                  width={44}
-                  height={24}
+                  width={40}
+                  height={22}
                   className="object-contain"
                   referrerPolicy="no-referrer"
                 />
               </div>
               <div>
-                <h3 className="font-semibold text-zinc-900 text-base leading-tight">
-                  Pasang di Android
+                <h3 className="font-bold text-zinc-900 text-sm leading-tight">
+                  Unduh Aplikasi
                 </h3>
-                <p className="text-xs text-zinc-500 mt-0.5">
-                  One Day One Juz - SMAIT Ihsanul Fikri
+                <p className="text-[11px] text-zinc-500 mt-0.5">
+                  One Day One Juz
                 </p>
               </div>
             </div>
@@ -87,104 +82,54 @@ export function AndroidInstallModal({
           </div>
 
           {/* Modal Body */}
-          <div className="p-5 overflow-y-auto space-y-4 text-sm text-zinc-700">
+          <div className="px-5 py-4">
             {isInstalled ? (
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
-                <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto">
+              <div className="py-2 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <h4 className="font-semibold text-emerald-900">
-                  Aplikasi Sudah Terpasang!
-                </h4>
-                <p className="text-xs text-emerald-700 leading-relaxed">
-                  Aplikasi Setoran IF sudah berada di layar utama perangkat Anda. Anda dapat langsung membukanya tanpa browser.
-                </p>
+                <div>
+                  <h4 className="font-semibold text-zinc-900 text-sm">
+                    Aplikasi Sudah Terpasang
+                  </h4>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Aplikasi One Day One Juz sudah tersedia di layar utama perangkat Anda.
+                  </p>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="w-full py-2.5 px-4 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-semibold transition"
+                >
+                  Tutup
+                </button>
               </div>
             ) : (
-              <>
-                {/* Keunggulan PWA Android */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2.5 rounded-xl bg-zinc-50 border border-zinc-200">
-                    <span className="font-semibold text-zinc-900 block flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Ringan & Cepat
-                    </span>
-                    <span className="text-zinc-500 mt-0.5 block">
-                      Ukuran kurang dari 1 MB, hemat memori HP.
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-zinc-50 border border-zinc-200">
-                    <span className="font-semibold text-zinc-900 block flex items-center gap-1">
-                      <Layers className="w-3.5 h-3.5 text-emerald-600" /> Bebas Ribet
-                    </span>
-                    <span className="text-zinc-500 mt-0.5 block">
-                      Otomatis update tanpa perlu unduh file APK baru.
-                    </span>
-                  </div>
-                </div>
+              <div className="space-y-3">
+                {/* Single direct button */}
+                <button
+                  type="button"
+                  onClick={handleInstallClick}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-semibold text-sm shadow-sm transition cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Unduh Aplikasi</span>
+                </button>
 
-                {/* Tombol Aksi Utama */}
-                {isInstallable && (
-                  <button
-                    onClick={handleInstallClick}
-                    className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium text-sm shadow-sm transition cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    Pasang Aplikasi Sekarang
-                  </button>
+                {showFallbackHint && (
+                  <p className="text-center text-[11px] text-zinc-600 bg-zinc-50 p-2.5 rounded-xl border border-zinc-200 leading-snug">
+                    Ketuk menu peramban (<strong className="text-zinc-900">⋮</strong>) lalu pilih <strong className="text-zinc-900">&quot;Tambahkan ke Layar Utama&quot;</strong>.
+                  </p>
                 )}
 
-                {/* Panduan Langkah Pemasangan di Android Chrome */}
-                <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 space-y-3">
-                  <p className="font-medium text-xs text-zinc-900 uppercase tracking-wider">
-                    Cara Pasang via Browser Chrome (Android)
-                  </p>
-
-                  <div className="space-y-2.5 text-xs text-zinc-600">
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-semibold flex items-center justify-center shrink-0 mt-0.5">
-                        1
-                      </div>
-                      <div className="leading-snug">
-                        Ketuk tombol <strong className="text-zinc-800">titik tiga ( <MoreVertical className="w-3 h-3 inline text-zinc-700" /> )</strong> di sudut kanan atas peramban Google Chrome.
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-semibold flex items-center justify-center shrink-0 mt-0.5">
-                        2
-                      </div>
-                      <div className="leading-snug">
-                        Pilih menu <strong className="text-zinc-800">&ldquo;Tambahkan ke Layar Utama&rdquo;</strong> (atau <strong className="text-zinc-800">&ldquo;Instal aplikasi&rdquo;</strong>).
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-semibold flex items-center justify-center shrink-0 mt-0.5">
-                        3
-                      </div>
-                      <div className="leading-snug">
-                        Konfirmasi dengan mengetuk <strong className="text-zinc-800">&ldquo;Instal&rdquo;</strong>. Ikon aplikasi langsung hadir di layar utama HP Anda!
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Catatan untuk pengguna iOS jika dibuka di iPhone */}
-                <div className="text-[11px] text-zinc-500 bg-zinc-100/60 p-2.5 rounded-lg border border-zinc-200">
-                  <span className="font-medium text-zinc-700">Untuk Pengguna iPhone:</span> Ketuk ikon Bagikan (<Share2 className="w-3 h-3 inline text-zinc-600" />) di Safari, lalu pilih &ldquo;Tambahkan ke Layar Utama&rdquo;.
-                </div>
-              </>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full py-2 text-xs font-medium text-zinc-500 hover:text-zinc-800 transition"
+                >
+                  Nanti Saja
+                </button>
+              </div>
             )}
-          </div>
-
-          {/* Footer */}
-          <div className="p-4 bg-zinc-50 border-t border-zinc-200 flex items-center justify-end">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-zinc-600 hover:text-zinc-900 rounded-lg hover:bg-zinc-200/60 transition"
-            >
-              Tutup
-            </button>
           </div>
         </motion.div>
       </div>

@@ -23,7 +23,7 @@ import { Navbar } from '@/components/Navbar';
 import { SetoranForm } from '@/components/SetoranForm';
 import { AndroidInstallModal } from '@/components/AndroidInstallModal';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
-import { AlertCircle, CheckCircle2, Smartphone, Download, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -32,7 +32,20 @@ export default function HomePage() {
   // PWA & Android Installation
   const { isInstallable, isInstalled, install } = usePWAInstall();
   const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
-  const [hideBanner, setHideBanner] = useState<boolean>(false);
+
+  // Automatically show install popup once if not installed yet
+  useEffect(() => {
+    if (!isInstalled) {
+      const alreadyShown = sessionStorage.getItem('odoj_install_modal_shown');
+      if (!alreadyShown) {
+        const timer = setTimeout(() => {
+          setShowInstallModal(true);
+          sessionStorage.setItem('odoj_install_modal_shown', 'true');
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isInstalled]);
 
   // Sheet state: permanently remembered from local storage
   const [sheetMeta, setSheetMeta] = useState<SheetMeta | null>(() => {
@@ -233,45 +246,6 @@ export default function HomePage() {
                 <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
               )}
               <span className="flex-1">{toastMsg.text}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Android PWA Quick Download Banner (if not installed yet) */}
-        {!isInstalled && !hideBanner && (
-          <div className="mx-4 mt-3 mb-1 p-3 rounded-2xl bg-linear-to-r from-emerald-50 via-white to-emerald-50/50 border border-emerald-200/80 shadow-2xs flex items-center justify-between gap-3">
-            <div
-              onClick={() => setShowInstallModal(true)}
-              className="flex items-center gap-2.5 flex-1 cursor-pointer"
-            >
-              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <Smartphone className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-zinc-900 leading-tight">
-                  Pasang di Layar Utama HP
-                </p>
-                <p className="text-[11px] text-zinc-500 leading-tight mt-0.5 truncate">
-                  Buka langsung tanpa browser & hemat kuota
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={() => setShowInstallModal(true)}
-                className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-semibold rounded-lg shadow-2xs transition cursor-pointer flex items-center gap-1"
-              >
-                <Download className="w-3 h-3" />
-                Pasang
-              </button>
-              <button
-                onClick={() => setHideBanner(true)}
-                className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition"
-                aria-label="Tutup pemberitahuan"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
             </div>
           </div>
         )}
