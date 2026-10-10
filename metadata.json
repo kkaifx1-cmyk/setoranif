@@ -1,0 +1,6 @@
+{
+  "name": "Setoran Ngaji Mobile",
+  "description": "Aplikasi pencatatan setoran ngaji otomatis terintegrasi Google Sheets bergaya HeroUI dan shadcn ui untuk mobile",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
