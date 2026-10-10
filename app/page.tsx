@@ -21,11 +21,18 @@ import {
 } from '@/lib/storage';
 import { Navbar } from '@/components/Navbar';
 import { SetoranForm } from '@/components/SetoranForm';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AndroidInstallModal } from '@/components/AndroidInstallModal';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
+import { AlertCircle, CheckCircle2, Smartphone, Download, X } from 'lucide-react';
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+
+  // PWA & Android Installation
+  const { isInstallable, isInstalled, install } = usePWAInstall();
+  const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
+  const [hideBanner, setHideBanner] = useState<boolean>(false);
 
   // Sheet state: permanently remembered from local storage
   const [sheetMeta, setSheetMeta] = useState<SheetMeta | null>(() => {
@@ -198,8 +205,11 @@ export default function HomePage() {
     <div className="min-h-screen bg-zinc-100 text-zinc-900 selection:bg-emerald-600 selection:text-white">
       {/* Mobile App Viewport Container */}
       <div className="relative mx-auto flex min-h-screen max-w-md flex-col bg-zinc-50 border-x border-zinc-200 shadow-xs">
-        {/* Navbar */}
-        <Navbar />
+        {/* Navbar with Android Download button */}
+        <Navbar
+          onOpenInstall={() => setShowInstallModal(true)}
+          isInstalled={isInstalled}
+        />
 
         {/* Global Toast Alert */}
         {toastMsg && (
@@ -227,6 +237,45 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* Android PWA Quick Download Banner (if not installed yet) */}
+        {!isInstalled && !hideBanner && (
+          <div className="mx-4 mt-3 mb-1 p-3 rounded-2xl bg-linear-to-r from-emerald-50 via-white to-emerald-50/50 border border-emerald-200/80 shadow-2xs flex items-center justify-between gap-3">
+            <div
+              onClick={() => setShowInstallModal(true)}
+              className="flex items-center gap-2.5 flex-1 cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Smartphone className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-zinc-900 leading-tight">
+                  Pasang di Layar Utama HP
+                </p>
+                <p className="text-[11px] text-zinc-500 leading-tight mt-0.5 truncate">
+                  Buka langsung tanpa browser & hemat kuota
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => setShowInstallModal(true)}
+                className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-semibold rounded-lg shadow-2xs transition cursor-pointer flex items-center gap-1"
+              >
+                <Download className="w-3 h-3" />
+                Pasang
+              </button>
+              <button
+                onClick={() => setHideBanner(true)}
+                className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition"
+                aria-label="Tutup pemberitahuan"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Main Content: Dedicated Setoran Screen */}
         <main className="flex-1 px-4 py-3" id="main-content">
           <SetoranForm
@@ -238,6 +287,15 @@ export default function HomePage() {
             isRefreshingStudents={isRefreshingStudents}
           />
         </main>
+
+        {/* Android Installation Modal Guide */}
+        <AndroidInstallModal
+          isOpen={showInstallModal}
+          onClose={() => setShowInstallModal(false)}
+          onInstall={install}
+          isInstallable={isInstallable}
+          isInstalled={isInstalled}
+        />
       </div>
     </div>
   );

@@ -149,26 +149,36 @@ export function SetoranForm({
     setIsDatePickerOpen(false);
   };
 
-  // Quick preset helper
-  const handleApplyPreset = (preset: 'now' | 'today-morning' | 'today-afternoon' | 'yesterday') => {
-    const now = new Date();
-    if (preset === 'now') {
-      handleResetToAutoTime();
-      return;
-    }
+  // Direct input refs to allow entire area click to trigger native picker
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const timeInputRef = useRef<HTMLInputElement>(null);
 
-    const target = new Date();
-    if (preset === 'yesterday') {
-      target.setDate(now.getDate() - 1);
-    } else if (preset === 'today-morning') {
-      target.setHours(7, 30, 0, 0);
-    } else if (preset === 'today-afternoon') {
-      target.setHours(16, 0, 0, 0);
+  const triggerDatePicker = () => {
+    if (dateInputRef.current) {
+      if (typeof dateInputRef.current.showPicker === 'function') {
+        try {
+          dateInputRef.current.showPicker();
+          return;
+        } catch {
+          // ignore error
+        }
+      }
+      dateInputRef.current.focus();
     }
+  };
 
-    setCurrentDate(target);
-    setIsManualDate(true);
-    setIsDatePickerOpen(false);
+  const triggerTimePicker = () => {
+    if (timeInputRef.current) {
+      if (typeof timeInputRef.current.showPicker === 'function') {
+        try {
+          timeInputRef.current.showPicker();
+          return;
+        } catch {
+          // ignore error
+        }
+      }
+      timeInputRef.current.focus();
+    }
   };
 
   // Filtered students for combobox
@@ -234,7 +244,7 @@ export function SetoranForm({
   // WhatsApp text template for parents
   const generateWhatsAppText = (rec: SetoranRecord) => {
     return (
-      `*LAPORAN SETORAN NGAJI*\n` +
+      `*LAPORAN SETORAN - ONE DAY ONE JUZ*\n` +
       `SMAIT IHSANUL FIKRI\n` +
       `-----------------------------------------\n` +
       `👤 *Nama:* ${rec.studentName}\n` +
@@ -336,69 +346,74 @@ export function SetoranForm({
                 </button>
               </div>
 
-              {/* Quick Presets */}
-              <div className="mt-3.5">
-                <span className="text-[11px] font-semibold text-zinc-500">
-                  Pilihan Cepat
-                </span>
-                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('now')}
-                    className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-xs font-semibold text-zinc-800 transition hover:bg-emerald-50 hover:border-emerald-600"
-                  >
-                    Waktu Sekarang
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('today-morning')}
-                    className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-xs font-semibold text-zinc-800 transition hover:bg-emerald-50 hover:border-emerald-600"
-                  >
-                    Pagi Ini (07:30)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('today-afternoon')}
-                    className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-xs font-semibold text-zinc-800 transition hover:bg-emerald-50 hover:border-emerald-600"
-                  >
-                    Sore Ini (16:00)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('yesterday')}
-                    className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-xs font-semibold text-zinc-800 transition hover:bg-emerald-50 hover:border-emerald-600"
-                  >
-                    Kemarin
-                  </button>
-                </div>
-              </div>
-
-              {/* Manual Date & Time Inputs */}
-              <div className="mt-4 space-y-3">
+              {/* Manual Date & Time Inputs (Full Box is Clickable) */}
+              <div className="mt-4 space-y-4">
+                {/* Tanggal: Seluruh area form dapat diklik */}
                 <div>
-                  <label htmlFor="custom-date-field" className="block text-xs font-medium text-zinc-700">
+                  <label
+                    onClick={triggerDatePicker}
+                    htmlFor="custom-date-field"
+                    className="block text-xs font-semibold text-zinc-700 cursor-pointer select-none"
+                  >
                     Tanggal
                   </label>
-                  <input
-                    id="custom-date-field"
-                    type="date"
-                    value={pickerDate}
-                    onChange={(e) => setPickerDate(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
-                  />
+                  <div
+                    onClick={triggerDatePicker}
+                    className="group mt-1 flex w-full cursor-pointer items-center justify-between rounded-xl border border-zinc-300 bg-zinc-50/70 px-3.5 py-3 transition hover:border-emerald-600 hover:bg-emerald-50/30 focus-within:border-emerald-700 focus-within:ring-2 focus-within:ring-emerald-700/20 active:scale-[0.99]"
+                    title="Klik di mana saja untuk memilih tanggal"
+                  >
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      <Calendar className="h-4 w-4 text-emerald-700 shrink-0 pointer-events-none" aria-hidden="true" />
+                      <input
+                        ref={dateInputRef}
+                        id="custom-date-field"
+                        type="date"
+                        value={pickerDate}
+                        onChange={(e) => setPickerDate(e.target.value)}
+                        className="w-full bg-transparent cursor-pointer text-sm font-semibold text-zinc-900 focus:outline-none"
+                      />
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-700 shrink-0 pointer-events-none ml-2">
+                      Pilih Tanggal
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    Klik di area mana saja untuk memunculkan kalender.
+                  </p>
                 </div>
 
+                {/* Jam & Menit: Seluruh area form dapat diklik */}
                 <div>
-                  <label htmlFor="custom-time-field" className="block text-xs font-medium text-zinc-700">
+                  <label
+                    onClick={triggerTimePicker}
+                    htmlFor="custom-time-field"
+                    className="block text-xs font-semibold text-zinc-700 cursor-pointer select-none"
+                  >
                     Jam &amp; Menit
                   </label>
-                  <input
-                    id="custom-time-field"
-                    type="time"
-                    value={pickerTime}
-                    onChange={(e) => setPickerTime(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20"
-                  />
+                  <div
+                    onClick={triggerTimePicker}
+                    className="group mt-1 flex w-full cursor-pointer items-center justify-between rounded-xl border border-zinc-300 bg-zinc-50/70 px-3.5 py-3 transition hover:border-emerald-600 hover:bg-emerald-50/30 focus-within:border-emerald-700 focus-within:ring-2 focus-within:ring-emerald-700/20 active:scale-[0.99]"
+                    title="Klik di mana saja untuk memilih jam dan menit"
+                  >
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      <Clock className="h-4 w-4 text-emerald-700 shrink-0 pointer-events-none" aria-hidden="true" />
+                      <input
+                        ref={timeInputRef}
+                        id="custom-time-field"
+                        type="time"
+                        value={pickerTime}
+                        onChange={(e) => setPickerTime(e.target.value)}
+                        className="w-full bg-transparent cursor-pointer text-sm font-semibold text-zinc-900 focus:outline-none"
+                      />
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-700 shrink-0 pointer-events-none ml-2">
+                      Pilih Jam
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    Klik di area mana saja untuk mengatur jam dan menit.
+                  </p>
                 </div>
               </div>
 

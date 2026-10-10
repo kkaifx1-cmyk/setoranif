@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="128" fill="#047857" />
+  <circle cx="256" cy="256" r="200" fill="#ffffff" />
+  <circle cx="256" cy="256" r="188" fill="#047857" />
+  <!-- Crescent & Star / Quran Motif -->
+  <path d="M256 120 C180.89 120 120 180.89 120 256 C120 331.11 180.89 392 256 392 C331.11 392 392 331.11 392 256 C392 235 387 215 378 197 C370 230 340 255 304 255 C259.82 255 224 219.18 224 175 C224 153 232.5 133 246.5 120 Z" fill="#fbbf24"/>
+  <!-- Open Book / Quran -->
+  <path d="M190 280 C220 265 245 272 256 280 C267 272 292 265 322 280 L322 350 C292 335 267 342 256 350 C245 342 220 335 190 350 Z" fill="#ffffff" stroke="#047857" stroke-width="4" stroke-linejoin="round"/>
+  <line x1="256" y1="280" x2="256" y2="350" stroke="#047857" stroke-width="4"/>
+</svg>
