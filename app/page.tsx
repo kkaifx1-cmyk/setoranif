@@ -23,7 +23,13 @@ import { Navbar } from '@/components/Navbar';
 import { SetoranForm } from '@/components/SetoranForm';
 import { AndroidInstallModal } from '@/components/AndroidInstallModal';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Share2, Copy } from 'lucide-react';
+
+interface ToastState {
+  text: string;
+  type: 'success' | 'error' | 'info';
+  record?: SetoranRecord;
+}
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -67,12 +73,61 @@ export default function HomePage() {
   // Setoran saving state
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Notification / Toast
-  const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  // Notification / Toast with optional Share button
+  const [toastMsg, setToastMsg] = useState<ToastState | null>(null);
+  const [copiedShare, setCopiedShare] = useState<boolean>(false);
 
-  const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setToastMsg({ text, type });
-    setTimeout(() => setToastMsg(null), 3500);
+  const showToast = (
+    text: string,
+    type: 'success' | 'error' | 'info' = 'success',
+    record?: SetoranRecord
+  ) => {
+    setToastMsg({ text, type, record });
+    const duration = record ? 8000 : 3500;
+    setTimeout(() => {
+      setToastMsg((prev) => (prev?.text === text ? null : prev));
+    }, duration);
+  };
+
+  // Helper to format encouragement share message for teachers/peers
+  const generateShareMessage = (rec: SetoranRecord) => {
+    return (
+      `*ONE DAY ONE JUZ*\n` +
+      `SMAIT IHSANUL FIKRI\n` +
+      `-----------------------------------------\n` +
+      `👤 *Nama:* ${rec.studentName}\n` +
+      `📅 *Waktu:* ${rec.datetimeFormatted}\n` +
+      `📖 *Capaian:* ${rec.capaianSummary}\n` +
+      `-----------------------------------------\n` +
+      `Alhamdulillah, saya telah menyelesaikan tilawah ${rec.capaianSummary}. Ayo Bapak/Ibu yang lainnya semangat, mari kita tuntaskan bersama! ✨`
+    );
+  };
+
+  const handleShare = async (record: SetoranRecord) => {
+    const text = generateShareMessage(record);
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: 'One Day One Juz - SMAIT Ihsanul Fikri',
+          text: text,
+        });
+        return;
+      } catch (err: unknown) {
+        // Fallback to WhatsApp or clipboard if canceled or unsupported
+        if ((err as Error)?.name === 'AbortError') return;
+      }
+    }
+
+    // Direct WhatsApp share
+    const encoded = encodeURIComponent(text);
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+  };
+
+  const handleCopyShare = (record: SetoranRecord) => {
+    const text = generateShareMessage(record);
+    navigator.clipboard.writeText(text);
+    setCopiedShare(true);
+    setTimeout(() => setCopiedShare(false), 2000);
   };
 
   // Sync / Load Google Sheet and student names
@@ -155,7 +210,7 @@ export default function HomePage() {
     return () => unsubscribe();
   }, [loadSheet]);
 
-  // Handle Save Setoran Record with seamless permanent save
+  // Handle Save Record
   const handleSaveSetoran = async (newRecord: SetoranRecord): Promise<boolean> => {
     setIsSaving(true);
     try {
@@ -194,20 +249,20 @@ export default function HomePage() {
       // 3. Append to Google Sheet permanently with exact timestamp
       if (currentToken && currentSheet && currentSheet.id !== 'setoran-ngaji-santri') {
         await appendSetoranRow(currentToken, currentSheet.id, newRecord);
-        showToast(`Setoran ${newRecord.studentName} (${newRecord.capaianSummary}) berhasil tersimpan ke Google Sheets.`, 'success');
+        showToast('Berhasil tersimpan', 'success', newRecord);
 
-        // Automatically add newly saved name to the active student names list if not present
+        // Automatically add newly saved name to active list
         if (!sheetStudentNames.some((n) => n.toLowerCase() === newRecord.studentName.toLowerCase())) {
           setSheetStudentNames((prev) => [...prev, newRecord.studentName].sort((a, b) => a.localeCompare(b, 'id')));
         }
       } else {
-        showToast(`Setoran ${newRecord.studentName} (${newRecord.capaianSummary}) tersimpan.`, 'success');
+        showToast('Berhasil tersimpan', 'success', newRecord);
       }
 
       return true;
     } catch (err: unknown) {
       console.error('Save error handled:', err);
-      showToast(`Setoran ${newRecord.studentName} (${newRecord.capaianSummary}) tersimpan.`, 'success');
+      showToast('Berhasil tersimpan', 'success', newRecord);
       return true;
     } finally {
       setIsSaving(false);
@@ -215,54 +270,87 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900 selection:bg-emerald-600 selection:text-white">
-      {/* Mobile App Viewport Container */}
-      <div className="relative mx-auto flex min-h-screen max-w-md flex-col bg-zinc-50 border-x border-zinc-200 shadow-xs">
+    <div className="h-screen w-screen overflow-hidden bg-zinc-100 text-zinc-900 selection:bg-emerald-600 selection:text-white">
+      {/* Mobile App Viewport Container: Fixed Height without page scrolling */}
+      <div className="relative mx-auto flex h-full max-w-md flex-col bg-zinc-50 border-x border-zinc-200 shadow-xs overflow-hidden">
         {/* Navbar with Android Download button */}
         <Navbar
           onOpenInstall={() => setShowInstallModal(true)}
           isInstalled={isInstalled}
         />
 
-        {/* Global Toast Alert */}
+        {/* Global Toast Alert with Share button */}
         {toastMsg && (
           <div
             role="status"
             aria-live="polite"
-            className="sticky top-14 z-50 px-4 pt-2"
+            className="absolute top-16 left-3 right-3 z-50 animate-in fade-in slide-in-from-top-3 duration-200"
           >
             <div
-              className={`flex items-center gap-2.5 rounded-xl px-4 py-3 text-xs font-semibold shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 ${
+              className={`flex items-center justify-between gap-2.5 rounded-2xl px-4 py-3 shadow-lg border ${
                 toastMsg.type === 'success'
-                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-950'
+                  ? 'border-emerald-200 bg-emerald-50/95 text-emerald-950 backdrop-blur-md'
                   : toastMsg.type === 'error'
-                  ? 'border border-rose-200 bg-rose-50 text-rose-950'
-                  : 'border border-zinc-200 bg-white text-zinc-900'
+                  ? 'border-rose-200 bg-rose-50/95 text-rose-950 backdrop-blur-md'
+                  : 'border-zinc-200 bg-white/95 text-zinc-900 backdrop-blur-md'
               }`}
             >
-              {toastMsg.type === 'success' ? (
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
-              ) : (
-                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                {toastMsg.type === 'success' ? (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
+                ) : (
+                  <AlertCircle className="h-5 w-5 shrink-0 text-rose-600" aria-hidden="true" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-bold leading-tight">{toastMsg.text}</p>
+                  {toastMsg.record && (
+                    <p className="text-[11px] text-emerald-800/80 truncate">
+                      {toastMsg.record.studentName} • {toastMsg.record.capaianSummary}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Share & Copy Buttons in Toast */}
+              {toastMsg.record && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyShare(toastMsg.record!)}
+                    className="flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-2 py-1 text-[11px] font-semibold text-emerald-900 shadow-2xs hover:bg-emerald-50 active:scale-95 cursor-pointer"
+                    title="Salin teks ajakan"
+                  >
+                    <Copy className="h-3 w-3" />
+                    <span>{copiedShare ? 'Tersalin' : 'Salin'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleShare(toastMsg.record!)}
+                    className="flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 active:scale-95 cursor-pointer"
+                    title="Bagikan ajakan ke WhatsApp / grup"
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                    <span>Share</span>
+                  </button>
+                </div>
               )}
-              <span className="flex-1">{toastMsg.text}</span>
             </div>
           </div>
         )}
 
-        {/* Main Content: Dedicated Setoran Screen */}
-        <main className="flex-1 px-4 py-3" id="main-content">
+        {/* Main Content: Fitted inside viewport without scrolling */}
+        <main className="flex-1 overflow-hidden px-4 py-3 flex flex-col" id="main-content">
           <SetoranForm
             onSaveSetoran={handleSaveSetoran}
             isSaving={isSaving}
-            recorderName={user?.displayName || 'Ustadz / Ustadzah'}
             sheetStudentNames={sheetStudentNames}
             onRefreshSheetStudents={handleRefreshStudentNames}
             isRefreshingStudents={isRefreshingStudents}
           />
         </main>
 
-        {/* Android Installation Modal Guide */}
+        {/* Android Installation Modal */}
         <AndroidInstallModal
           isOpen={showInstallModal}
           onClose={() => setShowInstallModal(false)}
