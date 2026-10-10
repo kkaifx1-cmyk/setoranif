@@ -11,6 +11,7 @@ import {
   SetoranRecord,
   findOrCreateSetoranSheet,
   appendSetoranRow,
+  fetchStudentNamesFromSheet,
 } from '@/lib/googleSheets';
 import {
   saveLocalRecord,
@@ -20,7 +21,6 @@ import {
 } from '@/lib/storage';
 import { Navbar } from '@/components/Navbar';
 import { SetoranForm } from '@/components/SetoranForm';
-import { SheetConfigModal } from '@/components/SheetConfigModal';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function HomePage() {
@@ -39,8 +39,10 @@ export default function HomePage() {
           url: 'https://docs.google.com/spreadsheets',
         };
   });
-  const [isLoadingSheet, setIsLoadingSheet] = useState<boolean>(false);
-  const [isSheetModalOpen, setIsSheetModalOpen] = useState<boolean>(false);
+
+  // Dynamic student names loaded from Google Sheet Column "Nama"
+  const [sheetStudentNames, setSheetStudentNames] = useState<string[]>([]);
+  const [isRefreshingStudents, setIsRefreshingStudents] = useState<boolean>(false);
 
   // Setoran saving state
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -53,10 +55,8 @@ export default function HomePage() {
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  // Sync / Load Google Sheet permanently
+  // Sync / Load Google Sheet and student names
   const loadSheet = useCallback(async (accessToken: string) => {
-    setIsLoadingSheet(true);
-
     try {
       const preferredId = getSavedSheetId();
       const meta = await findOrCreateSetoranSheet(accessToken, preferredId || undefined);
@@ -67,12 +67,57 @@ export default function HomePage() {
         url: meta.url,
         accountEmail: user?.email || 'kka.if.x1@gmail.com',
       });
+
+      // Load existing student names from Google Sheet column 'Nama'
+      if (meta.id && meta.id !== 'setoran-ngaji-santri') {
+        const names = await fetchStudentNamesFromSheet(accessToken, meta.id);
+        if (names.length > 0) {
+          setSheetStudentNames(names);
+        }
+      }
     } catch (err: unknown) {
       console.warn('Syncing to Google Sheet in background:', err);
-    } finally {
-      setIsLoadingSheet(false);
     }
   }, [user]);
+
+  // Refresh student names from Google Sheets manually
+  const handleRefreshStudentNames = async () => {
+    let currentToken = token;
+    let currentSheetId = sheetMeta?.id;
+
+    if (!currentToken) {
+      try {
+        const authRes = await googleSignIn();
+        if (authRes) {
+          setUser(authRes.user);
+          setToken(authRes.accessToken);
+          currentToken = authRes.accessToken;
+        }
+      } catch (e) {
+        console.warn('OAuth refresh on demand:', e);
+      }
+    }
+
+    if (!currentToken || !currentSheetId || currentSheetId === 'setoran-ngaji-santri') {
+      showToast('Belum terhubung ke spreadsheet.', 'info');
+      return;
+    }
+
+    setIsRefreshingStudents(true);
+    try {
+      const names = await fetchStudentNamesFromSheet(currentToken, currentSheetId);
+      if (names.length > 0) {
+        setSheetStudentNames(names);
+        showToast(`Memuat ${names.length} nama dari Google Sheets.`, 'success');
+      } else {
+        showToast('Kolom Nama di spreadsheet belum memiliki data.', 'info');
+      }
+    } catch {
+      showToast('Gagal memuat nama dari spreadsheet.', 'error');
+    } finally {
+      setIsRefreshingStudents(false);
+    }
+  };
 
   // Initialize Auth on component mount
   useEffect(() => {
@@ -83,7 +128,7 @@ export default function HomePage() {
         loadSheet(currentToken);
       },
       () => {
-        // Keep user and sheet retained
+        // Keep retained state
       }
     );
 
@@ -94,7 +139,7 @@ export default function HomePage() {
   const handleSaveSetoran = async (newRecord: SetoranRecord): Promise<boolean> => {
     setIsSaving(true);
     try {
-      // 1. Always save locally as instant safe permanent backup
+      // 1. Always save locally as instant permanent backup
       saveLocalRecord(newRecord);
 
       let currentToken = token;
@@ -122,144 +167,78 @@ export default function HomePage() {
             }
           }
         } catch (authErr) {
-          console.warn('OAuth token acquisition completed/handled:', authErr);
+          console.warn('OAuth token acquisition handled:', authErr);
         }
       }
 
-      // 3. Append to Google Sheet permanently
+      // 3. Append to Google Sheet permanently with exact timestamp
       if (currentToken && currentSheet && currentSheet.id !== 'setoran-ngaji-santri') {
         await appendSetoranRow(currentToken, currentSheet.id, newRecord);
-        showToast(`Setoran ${newRecord.studentName} (${newRecord.capaianSummary}) berhasil tersimpan ke Google Sheet!`, 'success');
+        showToast(`Setoran ${newRecord.studentName} (${newRecord.capaianSummary}) berhasil tersimpan ke Google Sheets.`, 'success');
+
+        // Automatically add newly saved name to the active student names list if not present
+        if (!sheetStudentNames.some((n) => n.toLowerCase() === newRecord.studentName.toLowerCase())) {
+          setSheetStudentNames((prev) => [...prev, newRecord.studentName].sort((a, b) => a.localeCompare(b, 'id')));
+        }
       } else {
-        showToast(`Setoran ${newRecord.studentName} (${newRecord.capaianSummary}) berhasil disimpan!`, 'success');
+        showToast(`Setoran ${newRecord.studentName} (${newRecord.capaianSummary}) tersimpan.`, 'success');
       }
 
       return true;
     } catch (err: unknown) {
-      console.error('Save handled:', err);
-      showToast(`Setoran ${newRecord.studentName} (${newRecord.capaianSummary}) berhasil disimpan!`, 'success');
+      console.error('Save error handled:', err);
+      showToast(`Setoran ${newRecord.studentName} (${newRecord.capaianSummary}) tersimpan.`, 'success');
       return true;
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Create new Sheet explicitly
-  const handleCreateNewSheet = async () => {
-    let currentToken = token;
-    if (!currentToken) {
-      const authRes = await googleSignIn();
-      if (authRes) {
-        setUser(authRes.user);
-        setToken(authRes.accessToken);
-        currentToken = authRes.accessToken;
-      }
-    }
-    if (!currentToken) return;
-
-    setIsLoadingSheet(true);
-    try {
-      const meta = await findOrCreateSetoranSheet(currentToken);
-      setSheetMeta(meta);
-      setSavedSheetMeta({
-        id: meta.id,
-        title: meta.title,
-        url: meta.url,
-        accountEmail: user?.email || 'kka.if.x1@gmail.com',
-      });
-      showToast('Spreadsheet baru berhasil disiapkan!', 'success');
-      setIsSheetModalOpen(false);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Gagal membuat Google Sheet baru.';
-      showToast(message, 'error');
-    } finally {
-      setIsLoadingSheet(false);
-    }
-  };
-
-  // Switch custom sheet ID
-  const handleSelectCustomSheet = async (sheetId: string) => {
-    setIsLoadingSheet(true);
-    try {
-      const meta: SheetMeta = {
-        id: sheetId,
-        title: 'Setoran Ngaji Santri',
-        url: `https://docs.google.com/spreadsheets/d/${sheetId}/edit`,
-      };
-      setSheetMeta(meta);
-      setSavedSheetMeta({
-        id: sheetId,
-        title: meta.title,
-        url: meta.url,
-        accountEmail: user?.email || 'kka.if.x1@gmail.com',
-      });
-      showToast('Berhasil terhubung ke Google Sheet!', 'success');
-      setIsSheetModalOpen(false);
-    } catch {
-      showToast('Gagal membaca Sheet ID yang dimasukkan.', 'error');
-    } finally {
-      setIsLoadingSheet(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900 selection:bg-emerald-600 selection:text-white dark:bg-zinc-950 dark:text-zinc-100">
-      {/* Mobile App Container */}
-      <div className="relative mx-auto flex min-h-screen max-w-md flex-col bg-zinc-50 border-x border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
+    <div className="min-h-screen bg-zinc-100 text-zinc-900 selection:bg-emerald-600 selection:text-white">
+      {/* Mobile App Viewport Container */}
+      <div className="relative mx-auto flex min-h-screen max-w-md flex-col bg-zinc-50 border-x border-zinc-200 shadow-xs">
         {/* Navbar */}
-        <Navbar
-          user={user}
-          sheetMeta={sheetMeta}
-          isLoadingSheet={isLoadingSheet}
-          onOpenSheetModal={() => setIsSheetModalOpen(true)}
-        />
+        <Navbar />
 
         {/* Global Toast Alert */}
         {toastMsg && (
           <div
             role="status"
             aria-live="polite"
-            className="sticky top-16 z-50 px-4 pt-2"
+            className="sticky top-14 z-50 px-4 pt-2"
           >
             <div
-              className={`flex items-center gap-2.5 rounded-xl px-4 py-3 text-xs font-semibold shadow-md animate-in fade-in slide-in-from-top-2 duration-200 ${
+              className={`flex items-center gap-2.5 rounded-xl px-4 py-3 text-xs font-semibold shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 ${
                 toastMsg.type === 'success'
-                  ? 'border border-emerald-700 bg-emerald-800 text-white'
+                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-950'
                   : toastMsg.type === 'error'
-                  ? 'border border-rose-700 bg-rose-800 text-white'
-                  : 'border border-zinc-700 bg-zinc-800 text-white'
+                  ? 'border border-rose-200 bg-rose-50 text-rose-950'
+                  : 'border border-zinc-200 bg-white text-zinc-900'
               }`}
             >
               {toastMsg.type === 'success' ? (
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
               ) : (
-                <AlertCircle className="h-4 w-4 shrink-0 text-rose-300" aria-hidden="true" />
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
               )}
               <span className="flex-1">{toastMsg.text}</span>
             </div>
           </div>
         )}
 
-        {/* Main Content Body: Dedicated Pure Setoran Screen */}
-        <main className="flex-1 px-4 py-4" id="main-content">
+        {/* Main Content: Dedicated Setoran Screen */}
+        <main className="flex-1 px-4 py-3" id="main-content">
           <SetoranForm
             onSaveSetoran={handleSaveSetoran}
             isSaving={isSaving}
             recorderName={user?.displayName || 'Ustadz / Ustadzah'}
+            sheetStudentNames={sheetStudentNames}
+            onRefreshSheetStudents={handleRefreshStudentNames}
+            isRefreshingStudents={isRefreshingStudents}
           />
         </main>
-
-        {/* Modals */}
-        <SheetConfigModal
-          isOpen={isSheetModalOpen}
-          onClose={() => setIsSheetModalOpen(false)}
-          sheetMeta={sheetMeta}
-          isLoading={isLoadingSheet}
-          onCreateNewSheet={handleCreateNewSheet}
-          onSelectCustomSheet={handleSelectCustomSheet}
-        />
       </div>
     </div>
   );
 }
-

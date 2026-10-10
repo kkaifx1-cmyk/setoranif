@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  // Allow access to remote image placeholder.
+  // Allow access to remote image placeholder and school logo.
   images: {
     remotePatterns: [
       {
@@ -16,6 +16,12 @@ const nextConfig: NextConfig = {
         hostname: 'picsum.photos',
         port: '',
         pathname: '/**', // This allows any path under the hostname
+      },
+      {
+        protocol: 'https',
+        hostname: 'infosmait.ihsanulfikri.sch.id',
+        port: '',
+        pathname: '/**',
       },
     ],
   },

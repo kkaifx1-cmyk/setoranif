@@ -257,6 +257,44 @@ export async function fetchSetoranRows(
 }
 
 /**
+ * Fetches unique student names from the 'Nama' column (Column C) in Google Sheets
+ */
+export async function fetchStudentNamesFromSheet(
+  accessToken: string,
+  spreadsheetId: string
+): Promise<string[]> {
+  try {
+    const range = `${encodeURIComponent(SHEET_TAB_NAME)}!C2:C500`;
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+
+    if (!res.ok) {
+      return [];
+    }
+
+    const data = await res.json();
+    const rows: string[][] = data.values || [];
+
+    const nameSet = new Set<string>();
+    for (const row of rows) {
+      const val = row[0]?.trim();
+      if (val && val.toLowerCase() !== 'nama' && val.length > 1) {
+        nameSet.add(val);
+      }
+    }
+
+    return Array.from(nameSet).sort((a, b) => a.localeCompare(b, 'id'));
+  } catch (err) {
+    console.warn('Gagal mengambil daftar nama dari Google Sheet:', err);
+    return [];
+  }
+}
+
+/**
  * Destructive operation: Deletes a specific row in the Google Sheet.
  * (MUST be invoked only with user confirmation modal in UI per workspace security rules)
  */
