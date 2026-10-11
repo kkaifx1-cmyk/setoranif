@@ -124,9 +124,9 @@ export function AndroidInstallModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-full py-2 text-xs font-medium text-zinc-500 hover:text-zinc-800 transition"
+                  className="w-full py-2 text-xs font-medium text-zinc-500 hover:text-zinc-800 transition cursor-pointer"
                 >
-                  Nanti Saja
+                  Tetap di Website
                 </button>
               </div>
             )}
