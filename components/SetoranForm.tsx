@@ -230,7 +230,7 @@ export function SetoranForm({
   };
 
   return (
-    <div className="flex h-full flex-col justify-between space-y-2.5">
+    <div className="flex flex-col space-y-2.5">
       {/* 1. Area Waktu Setoran: Entire Area is Clickable to open Date & Time Picker */}
       <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-xs">
         <div className="flex items-center justify-between">
@@ -404,9 +404,8 @@ export function SetoranForm({
       </AnimatePresence>
 
       {/* Main Setoran Form */}
-      <form onSubmit={handleSubmit} className="flex flex-1 flex-col justify-between space-y-2.5">
-        <div className="space-y-2.5">
-          {/* Card: Nama with Automatic Google Sheet dropdown */}
+      <form onSubmit={handleSubmit} className="space-y-2.5">
+        {/* Card: Nama with Automatic Google Sheet dropdown */}
           <div
             ref={comboboxRef}
             className="relative rounded-2xl border border-zinc-200 bg-white p-3 shadow-xs"
@@ -682,10 +681,9 @@ export function SetoranForm({
               )}
             </div>
           </div>
-        </div>
 
-        {/* Action Button: Simpan Setoran */}
-        <div className="pt-1.5">
+        {/* Action Button: Simpan Setoran (Tepat di bawah section capaian) */}
+        <div className="pt-1">
           <button
             type="submit"
             disabled={isSaving}
