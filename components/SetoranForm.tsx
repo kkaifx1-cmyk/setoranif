@@ -684,20 +684,23 @@ export function SetoranForm({
           </div>
         </div>
 
-        {/* Action Button: Simpan */}
-        <div className="pt-1">
+        {/* Action Button: Simpan Setoran */}
+        <div className="pt-1.5">
           <button
             type="submit"
             disabled={isSaving}
-            className="flex w-full items-center justify-center rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white shadow-xs transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+            className="group relative flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 py-3.5 text-sm font-bold tracking-wide text-white shadow-md shadow-emerald-800/20 transition-all duration-150 hover:bg-emerald-800 hover:shadow-lg hover:shadow-emerald-800/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
           >
             {isSaving ? (
               <span className="inline-flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
-                <span>Menyimpan...</span>
+                <RefreshCw className="h-4 w-4 animate-spin text-emerald-200" aria-hidden="true" />
+                <span>Menyimpan Setoran...</span>
               </span>
             ) : (
-              <span>Simpan</span>
+              <span className="inline-flex items-center gap-2">
+                <Check className="h-4 w-4 stroke-[2.5] text-emerald-100 transition-transform group-hover:scale-110" aria-hidden="true" />
+                <span>Simpan Setoran</span>
+              </span>
             )}
           </button>
         </div>
