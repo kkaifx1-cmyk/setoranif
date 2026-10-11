@@ -268,7 +268,9 @@ export function SetoranForm({
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-zinc-900">
+                {/* Live clock: server-render and hydration happen seconds apart, so the
+                    minute can differ. The value is intentionally client-driven. */}
+                <span className="text-xs font-bold text-zinc-900" suppressHydrationWarning>
                   {formattedDateTime}
                 </span>
               </div>

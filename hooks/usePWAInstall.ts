@@ -32,17 +32,34 @@ export function usePWAInstall() {
   const [isRegistered, setIsRegistered] = useState(false);
 
   useEffect(() => {
-    // Register Service Worker
+    // Service Worker: only in production builds. "npm run dev" serves /_next assets with
+    // stable URLs, so a cache-first service worker keeps handing out stale CSS/JS after a
+    // rebuild (the page renders unstyled). In dev we also remove any worker left over from
+    // an earlier session so this cannot affect local development at all.
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV !== 'test') {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then((reg) => {
-          setIsRegistered(true);
-          console.log('Service Worker registered with scope:', reg.scope);
-        })
-        .catch((err) => {
-          console.warn('Service Worker registration failed:', err);
-        });
+      if (process.env.NODE_ENV === 'production') {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((reg) => {
+            setIsRegistered(true);
+            console.log('Service Worker registered with scope:', reg.scope);
+          })
+          .catch((err) => {
+            console.warn('Service Worker registration failed:', err);
+          });
+      } else {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => Promise.all(regs.map((reg) => reg.unregister())))
+          .then((results) => {
+            if (results.some(Boolean)) {
+              console.info('Dev: unregistered stale service worker(s) so cached assets cannot break the page.');
+            }
+          })
+          .catch((err) => {
+            console.warn('Dev: failed to unregister service worker:', err);
+          });
+      }
     }
 
     // Capture beforeinstallprompt for Android & Chromium

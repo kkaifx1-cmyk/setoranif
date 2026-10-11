@@ -25,6 +25,7 @@ import {
   addRecentStudent,
 } from '@/lib/storage';
 import { DEFAULT_DB_CONFIG } from '@/lib/dbConfig';
+import { isAppsScriptConfigured, scriptAppendSetoran, scriptListNames } from '@/lib/appsScript';
 import { Navbar } from '@/components/Navbar';
 import { SetoranForm } from '@/components/SetoranForm';
 import { SheetConfigModal } from '@/components/SheetConfigModal';
@@ -179,6 +180,29 @@ export default function HomePage() {
 
   // Refresh student names from Google Sheets manually
   const handleRefreshStudentNames = async () => {
+    // 0. Jembatan Apps Script (tanpa login): pakai ini kalau dikonfigurasi, jangan buka popup OAuth.
+    if (isAppsScriptConfigured()) {
+      setIsRefreshingStudents(true);
+      try {
+        const names = await scriptListNames();
+        if (names.length > 0) {
+          setSheetStudentNames(names);
+          saveCachedSheetNames(names);
+          showToast(`Memuat ${names.length} nama dari Google Sheets.`, 'success');
+        } else {
+          showToast('Tab "Daftar Guru" di spreadsheet belum memiliki nama.', 'info');
+        }
+      } catch (err: unknown) {
+        showToast(
+          (err as Error)?.message || 'Gagal memuat nama dari spreadsheet.',
+          'error'
+        );
+      } finally {
+        setIsRefreshingStudents(false);
+      }
+      return;
+    }
+
     let currentToken = token;
     let currentSheetId = sheetMeta?.id;
 
@@ -344,47 +368,64 @@ export default function HomePage() {
       let currentToken = token;
       let currentSheet = sheetMeta;
 
-      // 2. If token expired or not in memory, connect smoothly
-      if (!currentToken) {
+      // 2a. Jembatan Apps Script: kirim baris langsung ke sheet, tanpa login/OAuth popup.
+      if (isAppsScriptConfigured()) {
         try {
-          const authRes = await googleSignIn();
-          if (authRes) {
-            setUser(authRes.user);
-            setToken(authRes.accessToken);
-            currentToken = authRes.accessToken;
-            if (
-              !currentSheet ||
-              currentSheet.id === 'setoran-ngaji-guru' ||
-              currentSheet.id === 'setoran-ngaji-santri'
-            ) {
-              const preferredId = getSavedSheetId();
-              const meta = await findOrCreateSetoranSheet(authRes.accessToken, preferredId || undefined);
-              setSheetMeta(meta);
-              setSavedSheetMeta({
-                id: meta.id,
-                title: meta.title,
-                url: meta.url,
-                accountEmail: authRes.user.email || 'kka.if.x1@gmail.com',
-              });
-              currentSheet = meta;
-            }
-          }
-        } catch (authErr) {
-          console.warn('OAuth token acquisition handled:', authErr);
+          await scriptAppendSetoran(newRecord);
+          showToast('Berhasil tersimpan', 'success', newRecord);
+        } catch (sheetErr: unknown) {
+          console.error('Gagal mengirim ke Sheet via Apps Script:', sheetErr);
+          showToast(
+            `Tersimpan di perangkat, gagal kirim ke Sheet: ${
+              (sheetErr as Error)?.message || 'kesalahan tidak diketahui'
+            }`,
+            'error',
+            newRecord
+          );
         }
-      }
-
-      // 3. Append to Google Sheet permanently with exact timestamp
-      if (
-        currentToken &&
-        currentSheet &&
-        currentSheet.id !== 'setoran-ngaji-guru' &&
-        currentSheet.id !== 'setoran-ngaji-santri'
-      ) {
-        await appendSetoranRow(currentToken, currentSheet.id, newRecord);
-        showToast('Berhasil tersimpan', 'success', newRecord);
       } else {
-        showToast('Berhasil tersimpan', 'success', newRecord);
+        // 2b. Jika token expired atau belum ada di memori, sambungkan secara halus
+        if (!currentToken) {
+          try {
+            const authRes = await googleSignIn();
+            if (authRes) {
+              setUser(authRes.user);
+              setToken(authRes.accessToken);
+              currentToken = authRes.accessToken;
+              if (
+                !currentSheet ||
+                currentSheet.id === 'setoran-ngaji-guru' ||
+                currentSheet.id === 'setoran-ngaji-santri'
+              ) {
+                const preferredId = getSavedSheetId();
+                const meta = await findOrCreateSetoranSheet(authRes.accessToken, preferredId || undefined);
+                setSheetMeta(meta);
+                setSavedSheetMeta({
+                  id: meta.id,
+                  title: meta.title,
+                  url: meta.url,
+                  accountEmail: authRes.user.email || 'kka.if.x1@gmail.com',
+                });
+                currentSheet = meta;
+              }
+            }
+          } catch (authErr) {
+            console.warn('OAuth token acquisition handled:', authErr);
+          }
+        }
+
+        // 3. Append ke Google Sheet dengan timestamp persis
+        if (
+          currentToken &&
+          currentSheet &&
+          currentSheet.id !== 'setoran-ngaji-guru' &&
+          currentSheet.id !== 'setoran-ngaji-santri'
+        ) {
+          await appendSetoranRow(currentToken, currentSheet.id, newRecord);
+          showToast('Berhasil tersimpan', 'success', newRecord);
+        } else {
+          showToast('Berhasil tersimpan', 'success', newRecord);
+        }
       }
 
       // Automatically add newly saved name to active list, cache, and recent storage

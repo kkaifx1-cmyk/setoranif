@@ -1,4 +1,5 @@
 import { DEFAULT_DB_CONFIG } from './dbConfig';
+import { isAppsScriptConfigured, scriptListNames } from './appsScript';
 
 export interface SetoranRecord {
   id: string;
@@ -592,6 +593,16 @@ export async function fetchStudentNamesSmart(
     spreadsheetId === 'setoran-ngaji-santri'
   )
     return [];
+
+  // 0. Jembatan Apps Script (tanpa login) — paling andal, dan bekerja walau sheet privat
+  if (isAppsScriptConfigured()) {
+    try {
+      const scriptNames = await scriptListNames();
+      if (scriptNames.length > 0) return scriptNames;
+    } catch {
+      // lanjut ke jalur lain
+    }
+  }
 
   // 1. Try instant public query (works if sheet is shared or viewable)
   try {
