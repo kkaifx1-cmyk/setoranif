@@ -126,7 +126,7 @@ function listNames_() {
     var values = shGuru.getRange(2, 1, shGuru.getLastRow() - 1, 1).getValues();
     for (var i = 0; i < values.length; i++) {
       var v = String(values[i][0] || '').trim();
-      if (v && !seen[v.toLowerCase()]) {
+      if (v && !seen[v.toLowerCase()] && v.toLowerCase().indexOf('halangan') === -1) {
         seen[v.toLowerCase()] = true;
         names.push(v);
       }
@@ -138,7 +138,7 @@ function listNames_() {
       var rows = shSetoran.getRange(2, 1, shSetoran.getLastRow() - 1, 3).getValues();
       for (var r = 0; r < rows.length; r++) {
         var n = String(rows[r][2] || '').trim();
-        if (n && !seen[n.toLowerCase()]) {
+        if (n && !seen[n.toLowerCase()] && n.toLowerCase().indexOf('halangan') === -1) {
           seen[n.toLowerCase()] = true;
           names.push(n);
         }

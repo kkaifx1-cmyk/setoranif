@@ -50,10 +50,11 @@ export function SetoranForm({
   const comboboxRef = useRef<HTMLDivElement>(null);
   const datePickerModalRef = useRef<HTMLDivElement>(null);
 
-  // 3. Capaian Ngaji: Juz (1-30) vs Halaman (< 1 Juz: 1-19)
+  // 3. Capaian Ngaji: Juz (0-30) vs Halaman (< 1 Juz: 1-19) vs Sedang Halangan
   const [capaianType, setCapaianType] = useState<'juz' | 'halaman'>('juz');
   const [juzCount, setJuzCount] = useState<number>(1);
   const [halamanCount, setHalamanCount] = useState<number>(1);
+  const [isHalangan, setIsHalangan] = useState<boolean>(false);
 
   // Active student list strictly reflects Google Sheets
   const availableStudents = useMemo(() => {
@@ -186,11 +187,45 @@ export function SetoranForm({
 
   // Capaian summary label
   const capaianSummary = useMemo(() => {
+    if (isHalangan || (capaianType === 'juz' && juzCount === 0)) {
+      return 'Sedang Halangan';
+    }
     if (capaianType === 'juz') {
       return `${juzCount} Juz`;
     }
     return `${halamanCount} Halaman`;
-  }, [capaianType, juzCount, halamanCount]);
+  }, [isHalangan, capaianType, juzCount, halamanCount]);
+
+  // Toggle checklist sedang halangan (0 Juz)
+  const handleToggleHalangan = (checked: boolean) => {
+    setIsHalangan(checked);
+    if (checked) {
+      setCapaianType('juz');
+      setJuzCount(0);
+    } else {
+      setJuzCount(1);
+    }
+  };
+
+  // Decrement Juz (dapat turun hingga 0 Juz / Halangan)
+  const handleDecrementJuz = () => {
+    if (juzCount === 1) {
+      setJuzCount(0);
+      setIsHalangan(true);
+    } else if (juzCount > 1) {
+      setJuzCount(juzCount - 1);
+    }
+  };
+
+  // Increment Juz (dari 0 otomatis membatalkan status halangan)
+  const handleIncrementJuz = () => {
+    if (juzCount === 0) {
+      setJuzCount(1);
+      setIsHalangan(false);
+    } else if (juzCount < 30) {
+      setJuzCount(juzCount + 1);
+    }
+  };
 
   // Submit setoran
   const handleSubmit = async (e: React.FormEvent) => {
@@ -200,8 +235,9 @@ export function SetoranForm({
       return;
     }
 
-    const finalJuz = capaianType === 'juz' ? Math.max(1, juzCount) : 0;
-    const finalHalaman = capaianType === 'halaman' ? Math.max(1, halamanCount) : 0;
+    const isRecordHalangan = isHalangan || (capaianType === 'juz' && juzCount === 0);
+    const finalJuz = isRecordHalangan ? 0 : capaianType === 'juz' ? Math.max(0, juzCount) : 0;
+    const finalHalaman = isRecordHalangan || capaianType === 'juz' ? 0 : Math.max(1, halamanCount);
 
     const newRecord: SetoranRecord = {
       id: `ODOJ-${Date.now().toString(36).toUpperCase()}`,
@@ -214,14 +250,22 @@ export function SetoranForm({
       timestamp: currentDate.toISOString(),
       category: "Al-Qur'an",
       capaian: capaianSummary,
-      detailHalamanAyat: capaianType === 'halaman' ? `${finalHalaman} Halaman` : `${finalJuz} Juz`,
-      status: 'Lancar',
-      notes: '',
+      detailHalamanAyat: isRecordHalangan
+        ? 'Sedang Halangan (0 Juz)'
+        : capaianType === 'halaman'
+        ? `${finalHalaman} Halaman`
+        : `${finalJuz} Juz`,
+      status: isRecordHalangan ? 'Halangan' : 'Lancar',
+      notes: isRecordHalangan ? 'Sedang halangan / uzur syar\'i' : '',
     };
 
     const success = await onSaveSetoran(newRecord);
     if (success) {
       addRecentStudent(cleanName);
+      if (isRecordHalangan) {
+        setIsHalangan(false);
+        setJuzCount(1);
+      }
       try {
         confetti({
           particleCount: 50,
@@ -541,7 +585,7 @@ export function SetoranForm({
             </div>
           </div>
 
-          {/* Card: Capaian Ngaji (Juz vs Halaman) */}
+          {/* Card: Capaian Ngaji (Juz vs Halaman vs Sedang Halangan) */}
           <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-xs">
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-1.5 text-xs font-bold tracking-tight text-zinc-800">
@@ -549,7 +593,11 @@ export function SetoranForm({
                 <span>Capaian *</span>
               </label>
               <span className="text-xs font-bold text-emerald-800">
-                {capaianType === 'juz' ? `${juzCount} Juz` : `${halamanCount} Halaman`}
+                {isHalangan || (capaianType === 'juz' && juzCount === 0)
+                  ? 'Sedang Halangan (0 Juz)'
+                  : capaianType === 'juz'
+                  ? `${juzCount} Juz`
+                  : `${halamanCount} Halaman`}
               </span>
             </div>
 
@@ -570,7 +618,13 @@ export function SetoranForm({
 
               <button
                 type="button"
-                onClick={() => setCapaianType('halaman')}
+                onClick={() => {
+                  setCapaianType('halaman');
+                  if (isHalangan) {
+                    setIsHalangan(false);
+                    setJuzCount(1);
+                  }
+                }}
                 className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 ${
                   capaianType === 'halaman'
                     ? 'bg-white text-emerald-800 shadow-xs'
@@ -591,15 +645,15 @@ export function SetoranForm({
                       Jumlah Juz
                     </span>
                     <span className="text-[10px] text-zinc-500">
-                      1 – 30 Juz
+                      0 – 30 Juz (0 = Halangan)
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50/70 p-1.5">
                     <button
                       type="button"
-                      onClick={() => setJuzCount(Math.max(1, juzCount - 1))}
-                      disabled={juzCount <= 1}
+                      onClick={handleDecrementJuz}
+                      disabled={juzCount <= 0}
                       className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-800 shadow-xs transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label="Kurangi 1 Juz"
                     >
@@ -613,11 +667,16 @@ export function SetoranForm({
                       <span className="text-xs font-semibold text-zinc-500">
                         Juz
                       </span>
+                      {(juzCount === 0 || isHalangan) && (
+                        <span className="ml-1 rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
+                          Halangan
+                        </span>
+                      )}
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => setJuzCount(Math.min(30, juzCount + 1))}
+                      onClick={handleIncrementJuz}
                       disabled={juzCount >= 30}
                       className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-800 shadow-xs transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label="Tambah 1 Juz"
@@ -673,6 +732,57 @@ export function SetoranForm({
                 </div>
               )}
             </div>
+
+            {/* Checklist: Sedang Halangan */}
+            <div className="mt-2.5 pt-2 border-t border-zinc-100">
+              <label
+                htmlFor="checklist-sedang-halangan"
+                className={`group flex items-center justify-between rounded-xl border px-3 py-2 cursor-pointer transition select-none ${
+                  isHalangan || (capaianType === 'juz' && juzCount === 0)
+                    ? 'border-rose-300 bg-rose-50/70 text-rose-950 shadow-2xs'
+                    : 'border-zinc-200 bg-zinc-50/60 hover:bg-zinc-100/70 text-zinc-700'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                      isHalangan || (capaianType === 'juz' && juzCount === 0)
+                        ? 'border-rose-600 bg-rose-600 text-white'
+                        : 'border-zinc-300 bg-white group-hover:border-zinc-400'
+                    }`}
+                  >
+                    {(isHalangan || (capaianType === 'juz' && juzCount === 0)) && (
+                      <Check className="h-3 w-3 stroke-[3]" aria-hidden="true" />
+                    )}
+                  </div>
+                  <input
+                    id="checklist-sedang-halangan"
+                    type="checkbox"
+                    checked={isHalangan || (capaianType === 'juz' && juzCount === 0)}
+                    onChange={(e) => handleToggleHalangan(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div>
+                    <span className="text-xs font-bold leading-tight">
+                      Sedang Halangan
+                    </span>
+                    <p className="text-[10px] text-zinc-500">
+                      Uzur syar&apos;i (otomatis tercatat 0 Juz)
+                    </p>
+                  </div>
+                </div>
+
+                <span
+                  className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                    isHalangan || (capaianType === 'juz' && juzCount === 0)
+                      ? 'bg-rose-200/80 text-rose-900'
+                      : 'bg-zinc-200/70 text-zinc-600'
+                  }`}
+                >
+                  0 Juz
+                </span>
+              </label>
+            </div>
           </div>
 
         {/* Action Button: Simpan Setoran (Tepat di bawah section capaian) */}
@@ -690,7 +800,11 @@ export function SetoranForm({
             ) : (
               <span className="inline-flex items-center gap-2">
                 <Check className="h-4 w-4 stroke-[2.5] text-emerald-100 transition-transform group-hover:scale-110" aria-hidden="true" />
-                <span>Simpan Setoran</span>
+                <span>
+                  {isHalangan || (capaianType === 'juz' && juzCount === 0)
+                    ? 'Simpan Setoran (Sedang Halangan)'
+                    : 'Simpan Setoran'}
+                </span>
               </span>
             )}
           </button>

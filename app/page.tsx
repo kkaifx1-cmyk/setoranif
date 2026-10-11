@@ -114,6 +114,19 @@ export default function HomePage() {
 
   // Helper to format encouragement share message for teachers/peers
   const generateShareMessage = (rec: SetoranRecord) => {
+    const isHalangan =
+      rec.status === 'Halangan' ||
+      rec.capaianSummary.toLowerCase().includes('halangan') ||
+      (rec.juzCount === 0 && rec.halamanCount === 0);
+
+    if (isHalangan) {
+      return (
+        `ONE DAY ONE JUZ\n` +
+        `SMAIT IHSANUL FIKRI\n` +
+        `Konfirmasi tilawah: Sedang Halangan (0 Juz). Ayo Bapak/Ibu yang lainnya tetap semangat, mari kita tuntaskan bersama! ✨`
+      );
+    }
+
     return (
       `ONE DAY ONE JUZ\n` +
       `SMAIT IHSANUL FIKRI\n` +
@@ -483,6 +496,7 @@ export default function HomePage() {
                   {toastMsg.record && (
                     <p className="text-[11px] text-emerald-800/80 truncate">
                       {toastMsg.record.studentName} • {toastMsg.record.capaianSummary}
+                      {toastMsg.record.capaianSummary === 'Sedang Halangan' ? ' (0 Juz)' : ''}
                     </p>
                   )}
                 </div>
@@ -516,8 +530,8 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Main Content: Fitted inside viewport without scrolling */}
-        <main className="flex-1 overflow-hidden px-4 py-3 flex flex-col" id="main-content">
+        {/* Main Content: Fitted inside viewport, scrolls gracefully on smaller mobile displays */}
+        <main className="flex-1 overflow-y-auto px-4 py-3 flex flex-col" id="main-content">
           <SetoranForm
             onSaveSetoran={handleSaveSetoran}
             isSaving={isSaving}

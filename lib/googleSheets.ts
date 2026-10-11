@@ -377,8 +377,9 @@ function isValidStudentName(val: string): boolean {
   if (ignoredHeaders.includes(lower)) return false;
   // Ignore system identifiers or ISO timestamps
   if (/^(odoj-|rec-|\d{4}-\d{2}-\d{2})/i.test(lower)) return false;
-  // Ignore capaian phrases like "1 Juz", "5 Halaman"
+  // Ignore capaian phrases like "1 Juz", "5 Halaman" or "Sedang Halangan"
   if (/^\d+\s*(juz|halaman|hal)/i.test(lower)) return false;
+  if (lower.includes('halangan')) return false;
   // Ignore pure numeric values or times
   if (/^\d+$/.test(lower) || /^\d{2}:\d{2}/.test(lower)) return false;
   return true;
