@@ -10,28 +10,26 @@ interface BeforeInstallPromptEvent extends Event {
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
-  // Lazy-initialize state from window to prevent setState within effect body
-  const [isInstalled, setIsInstalled] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true
-    );
-  });
-
-  const [isAndroid] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return /android/.test(window.navigator.userAgent.toLowerCase());
-  });
-
-  const [isIOS] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
-  });
-
+  const [isInstalled, setIsInstalled] = useState<boolean>(false);
+  const [isAndroid, setIsAndroid] = useState<boolean>(false);
+  const [isIOS, setIsIOS] = useState<boolean>(false);
   const [isRegistered, setIsRegistered] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const standalone =
+          window.matchMedia('(display-mode: standalone)').matches ||
+          (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+        if (standalone) setIsInstalled(true);
+
+        const ua = window.navigator.userAgent.toLowerCase();
+        if (/android/.test(ua)) setIsAndroid(true);
+        if (/iphone|ipad|ipod/.test(ua)) setIsIOS(true);
+      } catch {
+        // Safe fallback
+      }
+    }
     // Service Worker: only in production builds. "npm run dev" serves /_next assets with
     // stable URLs, so a cache-first service worker keeps handing out stale CSS/JS after a
     // rebuild (the page renders unstyled). In dev we also remove any worker left over from

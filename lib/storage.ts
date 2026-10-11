@@ -72,23 +72,31 @@ export function getSavedSheetId(): string | null {
   if (typeof window === 'undefined') {
     return DEFAULT_DB_CONFIG.spreadsheetId || null;
   }
-  const fromLocal = localStorage.getItem(SAVED_SHEET_KEY);
-  if (
-    fromLocal &&
-    fromLocal !== 'setoran-ngaji-guru' &&
-    fromLocal !== 'setoran-ngaji-santri'
-  ) {
-    return fromLocal;
+  try {
+    const fromLocal = localStorage.getItem(SAVED_SHEET_KEY);
+    if (
+      fromLocal &&
+      fromLocal !== 'setoran-ngaji-guru' &&
+      fromLocal !== 'setoran-ngaji-santri'
+    ) {
+      return fromLocal;
+    }
+  } catch (e) {
+    console.warn('Failed to read saved sheet ID from localStorage:', e);
   }
   return DEFAULT_DB_CONFIG.spreadsheetId || null;
 }
 
 export function setSavedSheetId(sheetId: string | null): void {
   if (typeof window === 'undefined') return;
-  if (sheetId) {
-    localStorage.setItem(SAVED_SHEET_KEY, sheetId);
-  } else {
-    localStorage.removeItem(SAVED_SHEET_KEY);
+  try {
+    if (sheetId) {
+      localStorage.setItem(SAVED_SHEET_KEY, sheetId);
+    } else {
+      localStorage.removeItem(SAVED_SHEET_KEY);
+    }
+  } catch (e) {
+    console.warn('Failed to set saved sheet ID in localStorage:', e);
   }
 }
 

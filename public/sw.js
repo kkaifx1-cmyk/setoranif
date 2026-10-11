@@ -1,8 +1,7 @@
 // Service Worker for Setoran Tahfidz SMAIT Ihsanul Fikri PWA
-const CACHE_NAME = 'setoran-if-v1';
+const CACHE_NAME = 'setoran-if-v2';
 
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
@@ -50,6 +49,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Navigation requests (HTML page): ALWAYS NETWORK-FIRST
+  // This prevents serving stale HTML that references dead/replaced Next.js JS chunk hashes,
+  // which causes "Application error: a client-side exception has occurred while loading".
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          // Offline fallback
+          return caches.match('/') || caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // Next.js static chunks / assets: try network first or cache fallback
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -85,10 +108,8 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // Offline fallback for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
+          // If network fails and request is for root or missing asset
+          return cachedResponse;
         });
     })
   );

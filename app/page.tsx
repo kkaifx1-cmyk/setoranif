@@ -47,16 +47,24 @@ export default function HomePage() {
   const { isInstallable, isInstalled, install } = usePWAInstall();
   const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
 
-  // Automatically show install popup once if not installed yet
+  // Automatically show install popup once if not installed yet (with safe storage check for mobile/safari)
   useEffect(() => {
     if (!isInstalled) {
-      const alreadyShown = sessionStorage.getItem('odoj_install_modal_shown');
-      if (!alreadyShown) {
-        const timer = setTimeout(() => {
-          setShowInstallModal(true);
-          sessionStorage.setItem('odoj_install_modal_shown', 'true');
-        }, 1000);
-        return () => clearTimeout(timer);
+      try {
+        const alreadyShown = sessionStorage.getItem('odoj_install_modal_shown');
+        if (!alreadyShown) {
+          const timer = setTimeout(() => {
+            setShowInstallModal(true);
+            try {
+              sessionStorage.setItem('odoj_install_modal_shown', 'true');
+            } catch {
+              // Ignore storage write error (e.g. Safari private browsing or storage quota)
+            }
+          }, 1000);
+          return () => clearTimeout(timer);
+        }
+      } catch {
+        // Ignore storage read error
       }
     }
   }, [isInstalled]);
