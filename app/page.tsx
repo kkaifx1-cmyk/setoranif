@@ -12,15 +12,22 @@ import {
   findOrCreateSetoranSheet,
   appendSetoranRow,
   fetchStudentNamesFromSheet,
+  fetchStudentNamesSmart,
 } from '@/lib/googleSheets';
 import {
   saveLocalRecord,
   getSavedSheetId,
   getSavedSheetMeta,
   setSavedSheetMeta,
+  getCachedSheetNames,
+  saveCachedSheetNames,
+  getAllKnownStudentNames,
+  addRecentStudent,
 } from '@/lib/storage';
+import { DEFAULT_DB_CONFIG } from '@/lib/dbConfig';
 import { Navbar } from '@/components/Navbar';
 import { SetoranForm } from '@/components/SetoranForm';
+import { SheetConfigModal } from '@/components/SheetConfigModal';
 import { AndroidInstallModal } from '@/components/AndroidInstallModal';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { AlertCircle, CheckCircle2, Share2, Copy } from 'lucide-react';
@@ -53,21 +60,36 @@ export default function HomePage() {
     }
   }, [isInstalled]);
 
-  // Sheet state: permanently remembered from local storage
+  // Sheet state: permanently remembered from ENV default or local storage
   const [sheetMeta, setSheetMeta] = useState<SheetMeta | null>(() => {
-    if (typeof window === 'undefined') return null;
     const saved = getSavedSheetMeta();
-    return saved
-      ? { id: saved.id, title: saved.title, url: saved.url }
-      : {
-          id: 'setoran-ngaji-santri',
-          title: 'Setoran Ngaji Santri',
-          url: 'https://docs.google.com/spreadsheets',
-        };
+    if (saved && saved.id) {
+      return { id: saved.id, title: saved.title, url: saved.url };
+    }
+    if (DEFAULT_DB_CONFIG.spreadsheetId) {
+      return {
+        id: DEFAULT_DB_CONFIG.spreadsheetId,
+        title: DEFAULT_DB_CONFIG.spreadsheetTitle,
+        url:
+          DEFAULT_DB_CONFIG.spreadsheetUrl ||
+          `https://docs.google.com/spreadsheets/d/${DEFAULT_DB_CONFIG.spreadsheetId}/edit`,
+      };
+    }
+    return {
+      id: 'setoran-ngaji-guru',
+      title: DEFAULT_DB_CONFIG.spreadsheetTitle,
+      url: 'https://docs.google.com/spreadsheets',
+    };
   });
 
-  // Dynamic student names loaded from Google Sheet Column "Nama"
-  const [sheetStudentNames, setSheetStudentNames] = useState<string[]>([]);
+  // Database / Google Sheet modal state
+  const [showSheetModal, setShowSheetModal] = useState<boolean>(false);
+  const [isConnectingSheet, setIsConnectingSheet] = useState<boolean>(false);
+
+  // Dynamic student names loaded from Google Sheet Column "Nama" & local records
+  const [sheetStudentNames, setSheetStudentNames] = useState<string[]>(() => {
+    return getAllKnownStudentNames();
+  });
   const [isRefreshingStudents, setIsRefreshingStudents] = useState<boolean>(false);
 
   // Setoran saving state
@@ -92,13 +114,8 @@ export default function HomePage() {
   // Helper to format encouragement share message for teachers/peers
   const generateShareMessage = (rec: SetoranRecord) => {
     return (
-      `*ONE DAY ONE JUZ*\n` +
+      `ONE DAY ONE JUZ\n` +
       `SMAIT IHSANUL FIKRI\n` +
-      `-----------------------------------------\n` +
-      `👤 *Nama:* ${rec.studentName}\n` +
-      `📅 *Waktu:* ${rec.datetimeFormatted}\n` +
-      `📖 *Capaian:* ${rec.capaianSummary}\n` +
-      `-----------------------------------------\n` +
       `Alhamdulillah, saya telah menyelesaikan tilawah ${rec.capaianSummary}. Ayo Bapak/Ibu yang lainnya semangat, mari kita tuntaskan bersama! ✨`
     );
   };
@@ -143,11 +160,16 @@ export default function HomePage() {
         accountEmail: user?.email || 'kka.if.x1@gmail.com',
       });
 
-      // Load existing student names from Google Sheet column 'Nama'
-      if (meta.id && meta.id !== 'setoran-ngaji-santri') {
+      // Load existing student names from Google Sheet column 'Nama' or dedicated master tab
+      if (
+        meta.id &&
+        meta.id !== 'setoran-ngaji-guru' &&
+        meta.id !== 'setoran-ngaji-santri'
+      ) {
         const names = await fetchStudentNamesFromSheet(accessToken, meta.id);
         if (names.length > 0) {
           setSheetStudentNames(names);
+          saveCachedSheetNames(names);
         }
       }
     } catch (err: unknown) {
@@ -173,7 +195,12 @@ export default function HomePage() {
       }
     }
 
-    if (!currentToken || !currentSheetId || currentSheetId === 'setoran-ngaji-santri') {
+    if (
+      !currentToken ||
+      !currentSheetId ||
+      currentSheetId === 'setoran-ngaji-guru' ||
+      currentSheetId === 'setoran-ngaji-santri'
+    ) {
       showToast('Belum terhubung ke spreadsheet.', 'info');
       return;
     }
@@ -183,6 +210,7 @@ export default function HomePage() {
       const names = await fetchStudentNamesFromSheet(currentToken, currentSheetId);
       if (names.length > 0) {
         setSheetStudentNames(names);
+        saveCachedSheetNames(names);
         showToast(`Memuat ${names.length} nama dari Google Sheets.`, 'success');
       } else {
         showToast('Kolom Nama di spreadsheet belum memiliki data.', 'info');
@@ -191,6 +219,85 @@ export default function HomePage() {
       showToast('Gagal memuat nama dari spreadsheet.', 'error');
     } finally {
       setIsRefreshingStudents(false);
+    }
+  };
+
+  // Handle switching to a custom Sheet ID
+  const handleSelectCustomSheet = async (customId: string) => {
+    setIsConnectingSheet(true);
+    try {
+      let currentToken = token;
+      if (!currentToken) {
+        const authRes = await googleSignIn();
+        if (authRes) {
+          setUser(authRes.user);
+          setToken(authRes.accessToken);
+          currentToken = authRes.accessToken;
+        }
+      }
+
+      if (!currentToken) {
+        showToast('Silakan login terlebih dahulu untuk menghubungkan sheet.', 'error');
+        return;
+      }
+
+      const meta = await findOrCreateSetoranSheet(currentToken, customId);
+      setSheetMeta(meta);
+      setSavedSheetMeta({
+        id: meta.id,
+        title: meta.title,
+        url: meta.url,
+        accountEmail: user?.email || 'kka.if.x1@gmail.com',
+      });
+      showToast('Berhasil terhubung ke spreadsheet.', 'success');
+      setShowSheetModal(false);
+
+      // Load students
+      const names = await fetchStudentNamesFromSheet(currentToken, meta.id);
+      if (names.length > 0) {
+        setSheetStudentNames(names);
+        saveCachedSheetNames(names);
+      }
+    } catch (err: unknown) {
+      showToast((err as Error)?.message || 'Gagal menghubungkan spreadsheet.', 'error');
+    } finally {
+      setIsConnectingSheet(false);
+    }
+  };
+
+  // Handle creating a new sheet on demand
+  const handleCreateNewSheet = async () => {
+    setIsConnectingSheet(true);
+    try {
+      let currentToken = token;
+      if (!currentToken) {
+        const authRes = await googleSignIn();
+        if (authRes) {
+          setUser(authRes.user);
+          setToken(authRes.accessToken);
+          currentToken = authRes.accessToken;
+        }
+      }
+
+      if (!currentToken) {
+        showToast('Silakan login terlebih dahulu.', 'error');
+        return;
+      }
+
+      const meta = await findOrCreateSetoranSheet(currentToken);
+      setSheetMeta(meta);
+      setSavedSheetMeta({
+        id: meta.id,
+        title: meta.title,
+        url: meta.url,
+        accountEmail: user?.email || 'kka.if.x1@gmail.com',
+      });
+      showToast('Google Sheet baru berhasil dibuat & terhubung.', 'success');
+      setShowSheetModal(false);
+    } catch (err: unknown) {
+      showToast((err as Error)?.message || 'Gagal membuat Google Sheet baru.', 'error');
+    } finally {
+      setIsConnectingSheet(false);
     }
   };
 
@@ -210,6 +317,23 @@ export default function HomePage() {
     return () => unsubscribe();
   }, [loadSheet]);
 
+  // Automatically fetch student names directly from the active spreadsheet on mount
+  useEffect(() => {
+    const activeSheetId = getSavedSheetId();
+    if (
+      activeSheetId &&
+      activeSheetId !== 'setoran-ngaji-guru' &&
+      activeSheetId !== 'setoran-ngaji-santri'
+    ) {
+      fetchStudentNamesSmart(activeSheetId, token).then((names) => {
+        if (names && names.length > 0) {
+          setSheetStudentNames(names);
+          saveCachedSheetNames(names);
+        }
+      });
+    }
+  }, [token]);
+
   // Handle Save Record
   const handleSaveSetoran = async (newRecord: SetoranRecord): Promise<boolean> => {
     setIsSaving(true);
@@ -228,7 +352,11 @@ export default function HomePage() {
             setUser(authRes.user);
             setToken(authRes.accessToken);
             currentToken = authRes.accessToken;
-            if (!currentSheet || currentSheet.id === 'setoran-ngaji-santri') {
+            if (
+              !currentSheet ||
+              currentSheet.id === 'setoran-ngaji-guru' ||
+              currentSheet.id === 'setoran-ngaji-santri'
+            ) {
               const preferredId = getSavedSheetId();
               const meta = await findOrCreateSetoranSheet(authRes.accessToken, preferredId || undefined);
               setSheetMeta(meta);
@@ -247,17 +375,25 @@ export default function HomePage() {
       }
 
       // 3. Append to Google Sheet permanently with exact timestamp
-      if (currentToken && currentSheet && currentSheet.id !== 'setoran-ngaji-santri') {
+      if (
+        currentToken &&
+        currentSheet &&
+        currentSheet.id !== 'setoran-ngaji-guru' &&
+        currentSheet.id !== 'setoran-ngaji-santri'
+      ) {
         await appendSetoranRow(currentToken, currentSheet.id, newRecord);
         showToast('Berhasil tersimpan', 'success', newRecord);
-
-        // Automatically add newly saved name to active list
-        if (!sheetStudentNames.some((n) => n.toLowerCase() === newRecord.studentName.toLowerCase())) {
-          setSheetStudentNames((prev) => [...prev, newRecord.studentName].sort((a, b) => a.localeCompare(b, 'id')));
-        }
       } else {
         showToast('Berhasil tersimpan', 'success', newRecord);
       }
+
+      // Automatically add newly saved name to active list, cache, and recent storage
+      const merged = Array.from(
+        new Set([...sheetStudentNames, newRecord.studentName, ...getAllKnownStudentNames()])
+      ).sort((a, b) => a.localeCompare(b, 'id'));
+      setSheetStudentNames(merged);
+      saveCachedSheetNames(merged);
+      addRecentStudent(newRecord.studentName);
 
       return true;
     } catch (err: unknown) {
@@ -357,6 +493,16 @@ export default function HomePage() {
           onInstall={install}
           isInstallable={isInstallable}
           isInstalled={isInstalled}
+        />
+
+        {/* Google Sheets / Database Configuration Modal */}
+        <SheetConfigModal
+          isOpen={showSheetModal}
+          onClose={() => setShowSheetModal(false)}
+          sheetMeta={sheetMeta}
+          isLoading={isConnectingSheet}
+          onCreateNewSheet={handleCreateNewSheet}
+          onSelectCustomSheet={handleSelectCustomSheet}
         />
       </div>
     </div>

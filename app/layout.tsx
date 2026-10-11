@@ -11,7 +11,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'One Day One Juz - SMAIT Ihsanul Fikri',
   description:
-    "Aplikasi pencatatan setoran tahfidz One Day One Juz santri SMAIT Ihsanul Fikri tersinkronisasi langsung ke Google Sheets.",
+    "Aplikasi pencatatan setoran tahfidz One Day One Juz Guru & Karyawan SMAIT Ihsanul Fikri tersinkronisasi langsung ke Google Sheets.",
   manifest: '/manifest.json',
   applicationName: 'One Day One Juz',
   appleWebApp: {
@@ -32,14 +32,14 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'One Day One Juz - SMAIT Ihsanul Fikri',
     description:
-      "Aplikasi pencatatan setoran tahfidz One Day One Juz santri SMAIT Ihsanul Fikri tersinkronisasi langsung ke Google Sheets.",
+      "Aplikasi pencatatan setoran tahfidz One Day One Juz Guru & Karyawan SMAIT Ihsanul Fikri tersinkronisasi langsung ke Google Sheets.",
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'One Day One Juz - SMAIT Ihsanul Fikri',
     description:
-      "Aplikasi pencatatan setoran tahfidz One Day One Juz santri SMAIT Ihsanul Fikri tersinkronisasi langsung ke Google Sheets.",
+      "Aplikasi pencatatan setoran tahfidz One Day One Juz Guru & Karyawan SMAIT Ihsanul Fikri tersinkronisasi langsung ke Google Sheets.",
   },
 };
 

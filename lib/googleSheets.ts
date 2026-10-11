@@ -1,3 +1,5 @@
+import { DEFAULT_DB_CONFIG } from './dbConfig';
+
 export interface SetoranRecord {
   id: string;
   datetimeFormatted: string; // e.g. "Sabtu, 10 Okt 2026 14:35 WIB"
@@ -24,8 +26,8 @@ export interface SheetMeta {
   accountEmail?: string;
 }
 
-const DEFAULT_SHEET_TITLE = 'Setoran Ngaji Santri';
-const SHEET_TAB_NAME = 'Data Setoran';
+const DEFAULT_SHEET_TITLE = DEFAULT_DB_CONFIG.spreadsheetTitle || 'One Day One Juz - SMAIT Ihsanul Fikri';
+const SHEET_TAB_NAME = DEFAULT_DB_CONFIG.tabName || 'Data Setoran';
 
 /**
  * Searches user's Google Drive for existing Setoran sheet, or creates a new one
@@ -34,11 +36,16 @@ export async function findOrCreateSetoranSheet(
   accessToken: string,
   preferredSheetId?: string
 ): Promise<SheetMeta> {
-  // 0. If user has a saved / verified sheet ID, prioritize and use it!
-  if (preferredSheetId) {
+  const activeTargetId =
+    preferredSheetId && preferredSheetId !== 'setoran-ngaji-santri'
+      ? preferredSheetId
+      : DEFAULT_DB_CONFIG.spreadsheetId;
+
+  // 0. If user or .env has a saved / verified sheet ID, prioritize and use it!
+  if (activeTargetId) {
     try {
       const checkRes = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${preferredSheetId}?fields=properties(title)`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${activeTargetId}?fields=properties(title)`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
@@ -46,9 +53,9 @@ export async function findOrCreateSetoranSheet(
       if (checkRes.ok) {
         const sheetData = await checkRes.json();
         return {
-          id: preferredSheetId,
+          id: activeTargetId,
           title: sheetData.properties?.title || DEFAULT_SHEET_TITLE,
-          url: `https://docs.google.com/spreadsheets/d/${preferredSheetId}/edit`,
+          url: `https://docs.google.com/spreadsheets/d/${activeTargetId}/edit`,
           created: false,
         };
       }
@@ -85,7 +92,7 @@ export async function findOrCreateSetoranSheet(
     console.warn('Drive search fallback to direct create or check:', err);
   }
 
-  // 2. Create new spreadsheet if not found
+  // 2. Create new spreadsheet with 2 tabs: 'Data Setoran' (riwayat) & 'Daftar Guru' (master database nama)
   const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
     method: 'POST',
     headers: {
@@ -105,6 +112,14 @@ export async function findOrCreateSetoranSheet(
             },
           },
         },
+        {
+          properties: {
+            title: 'Daftar Guru',
+            gridProperties: {
+              frozenRowCount: 1,
+            },
+          },
+        },
       ],
     }),
   });
@@ -117,12 +132,12 @@ export async function findOrCreateSetoranSheet(
   const createdSheet = await createRes.json();
   const spreadsheetId = createdSheet.spreadsheetId;
 
-  // 3. Populate header row with simplified columns
+  // 3. Populate header row in 'Data Setoran'
   const headerValues = [
     [
       'ID Setoran',
       'Tanggal & Waktu',
-      'Nama',
+      'Nama Guru',
       'Capaian Juz',
       'Capaian Halaman',
       'Ringkasan Capaian',
@@ -147,12 +162,60 @@ export async function findOrCreateSetoranSheet(
     }
   );
 
+  // 4. Populate header row in 'Daftar Guru'
+  await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(
+      'Daftar Guru'
+    )}!A1:A1?valueInputOption=USER_ENTERED`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        values: [['Nama Guru']],
+      }),
+    }
+  );
+
   return {
     id: spreadsheetId,
     title: DEFAULT_SHEET_TITLE,
     url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
     created: true,
   };
+}
+
+/**
+ * Helper to fetch all tabs in the spreadsheet to avoid failing when tab name is not default
+ */
+export interface SheetTabInfo {
+  sheetId: number;
+  title: string;
+}
+
+export async function getSpreadsheetTabs(
+  accessToken: string,
+  spreadsheetId: string
+): Promise<SheetTabInfo[]> {
+  try {
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title))`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.sheets || []).map((s: { properties?: { sheetId?: number; title?: string } }) => ({
+      sheetId: s.properties?.sheetId ?? 0,
+      title: s.properties?.title || 'Sheet1',
+    }));
+  } catch (err) {
+    console.warn('Failed to get spreadsheet tabs:', err);
+    return [];
+  }
 }
 
 /**
@@ -163,6 +226,17 @@ export async function appendSetoranRow(
   spreadsheetId: string,
   record: SetoranRecord
 ): Promise<boolean> {
+  // Dynamically resolve sheet tab
+  const tabs = await getSpreadsheetTabs(accessToken, spreadsheetId);
+  let targetTab = SHEET_TAB_NAME;
+  if (tabs.length > 0) {
+    const match =
+      tabs.find((t) => t.title.toLowerCase() === SHEET_TAB_NAME.toLowerCase()) ||
+      tabs.find((t) => /setoran|data/i.test(t.title)) ||
+      tabs[0];
+    if (match) targetTab = match.title;
+  }
+
   const row = [
     record.id,
     record.datetimeFormatted,
@@ -176,7 +250,7 @@ export async function appendSetoranRow(
 
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(
-      SHEET_TAB_NAME
+      targetTab
     )}!A:H:append?valueInputOption=USER_ENTERED`,
     {
       method: 'POST',
@@ -205,7 +279,17 @@ export async function fetchSetoranRows(
   accessToken: string,
   spreadsheetId: string
 ): Promise<SetoranRecord[]> {
-  const range = `${encodeURIComponent(SHEET_TAB_NAME)}!A2:J1000`;
+  const tabs = await getSpreadsheetTabs(accessToken, spreadsheetId);
+  let targetTab = SHEET_TAB_NAME;
+  if (tabs.length > 0) {
+    const match =
+      tabs.find((t) => t.title.toLowerCase() === SHEET_TAB_NAME.toLowerCase()) ||
+      tabs.find((t) => /setoran|data/i.test(t.title)) ||
+      tabs[0];
+    if (match) targetTab = match.title;
+  }
+
+  const range = `${encodeURIComponent(targetTab)}!A2:J1000`;
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
     {
@@ -257,41 +341,277 @@ export async function fetchSetoranRows(
 }
 
 /**
- * Fetches unique student names from the 'Nama' column (Column C) in Google Sheets
+ * Validates if string looks like an actual student name
+ */
+function isValidStudentName(val: string): boolean {
+  if (!val) return false;
+  const lower = val.toLowerCase().trim();
+  if (lower.length < 2) return false;
+  // Ignore common column headers
+  const ignoredHeaders = [
+    'nama',
+    'nama guru',
+    'guru',
+    'nama santri',
+    'nama siswa',
+    'nama ustadz',
+    'nama ustadzah',
+    'nama lengkap',
+    'name',
+    'id setoran',
+    'tanggal & waktu',
+    'tanggal',
+    'waktu',
+    'capaian juz',
+    'capaian halaman',
+    'ringkasan capaian',
+    'dicatat oleh',
+    'timestamp iso',
+    'status',
+    'kategori',
+    'catatan',
+    'no',
+    'nomor',
+  ];
+  if (ignoredHeaders.includes(lower)) return false;
+  // Ignore system identifiers or ISO timestamps
+  if (/^(odoj-|rec-|\d{4}-\d{2}-\d{2})/i.test(lower)) return false;
+  // Ignore capaian phrases like "1 Juz", "5 Halaman"
+  if (/^\d+\s*(juz|halaman|hal)/i.test(lower)) return false;
+  // Ignore pure numeric values or times
+  if (/^\d+$/.test(lower) || /^\d{2}:\d{2}/.test(lower)) return false;
+  return true;
+}
+
+/**
+ * Fetches unique student names from Google Sheets
+ * Searches dynamically for the 'Nama' column across sheet tabs and falls back intelligently
  */
 export async function fetchStudentNamesFromSheet(
   accessToken: string,
   spreadsheetId: string
 ): Promise<string[]> {
   try {
-    const range = `${encodeURIComponent(SHEET_TAB_NAME)}!C2:C500`;
-    const res = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
+    const tabs = await getSpreadsheetTabs(accessToken, spreadsheetId);
+
+    // 1. Check if user created a dedicated master tab for teachers / guru
+    // Examples: 'Daftar Guru', 'Guru', 'Data Guru', 'Master Guru', 'Ustadz', 'Daftar Ustadz', 'Daftar Nama', 'Nama'
+    const dedicatedNamesTab = tabs.find(
+      (t) =>
+        /daftar.*guru|data.*guru|master.*guru|^guru$|ustadz|ustadzah|pegawai|daftar.*nama|database.*nama|^nama$/i.test(
+          t.title
+        ) && !/setoran/i.test(t.title)
     );
 
-    if (!res.ok) {
-      return [];
-    }
-
-    const data = await res.json();
-    const rows: string[][] = data.values || [];
-
-    const nameSet = new Set<string>();
-    for (const row of rows) {
-      const val = row[0]?.trim();
-      if (val && val.toLowerCase() !== 'nama' && val.length > 1) {
-        nameSet.add(val);
+    // Prioritize sheet tabs
+    let primaryTabTitle = SHEET_TAB_NAME;
+    if (tabs.length > 0) {
+      const match =
+        tabs.find((t) => t.title.toLowerCase() === SHEET_TAB_NAME.toLowerCase()) ||
+        tabs.find((t) => /setoran|data/i.test(t.title)) ||
+        tabs[0];
+      if (match) {
+        primaryTabTitle = match.title;
       }
     }
+
+    const nameSet = new Set<string>();
+
+    // Helper to scan a sheet tab and extract names
+    const scanTab = async (tabTitle: string) => {
+      try {
+        const range = `${encodeURIComponent(tabTitle)}!A1:Z500`;
+        const res = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const rows: string[][] = data.values || [];
+        if (rows.length === 0) return;
+
+        // Check header row (row 0) to find column with 'Nama Guru' or 'Nama'
+        const headerRow = rows[0] || [];
+        const nameColIndex = headerRow.findIndex((col) => {
+          const c = (col || '').toString().toLowerCase().trim();
+          return (
+            c === 'nama guru' ||
+            c === 'nama' ||
+            c === 'guru' ||
+            c === 'nama ustadz' ||
+            c === 'nama ustadzah' ||
+            c === 'nama lengkap' ||
+            c === 'name' ||
+            c.includes('guru') ||
+            c.includes('nama')
+          );
+        });
+
+        const startIdx = nameColIndex >= 0 ? 1 : 0;
+        // In a dedicated tab, Column A (index 0) is usually the name list!
+        const candidateCols =
+          nameColIndex >= 0
+            ? [nameColIndex]
+            : dedicatedNamesTab && dedicatedNamesTab.title === tabTitle
+            ? [0, 1]
+            : [2, 1, 0];
+
+        for (let r = startIdx; r < rows.length; r++) {
+          const row = rows[r];
+          if (!row) continue;
+
+          for (const colIdx of candidateCols) {
+            const cellVal = (row[colIdx] || '').toString().trim();
+            if (isValidStudentName(cellVal)) {
+              nameSet.add(cellVal);
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`Error scanning tab ${tabTitle}:`, err);
+      }
+    };
+
+    // If user has a dedicated master tab for names, ONLY scan this master tab!
+    // This ensures deleted names in the master table do not resurrect from old setoran history.
+    if (dedicatedNamesTab) {
+      await scanTab(dedicatedNamesTab.title);
+      return Array.from(nameSet).sort((a, b) => a.localeCompare(b, 'id'));
+    }
+
+    // Otherwise scan the primary setoran tab
+    await scanTab(primaryTabTitle);
 
     return Array.from(nameSet).sort((a, b) => a.localeCompare(b, 'id'));
   } catch (err) {
     console.warn('Gagal mengambil daftar nama dari Google Sheet:', err);
     return [];
   }
+}
+
+/**
+ * Reads student names directly from public / shared Google Sheet
+ * Works immediately on page load without requiring OAuth or sign-in popup
+ */
+export async function fetchStudentNamesPublicly(spreadsheetId: string): Promise<string[]> {
+  if (
+    !spreadsheetId ||
+    spreadsheetId === 'setoran-ngaji-guru' ||
+    spreadsheetId === 'setoran-ngaji-santri'
+  )
+    return [];
+
+  // Check dedicated master tabs first, then default tab
+  const candidateTabs = [
+    'Daftar Guru',
+    'Guru',
+    'Data Guru',
+    'Master Guru',
+    'Daftar Nama',
+    'Data Setoran',
+    '',
+  ];
+
+  for (const tabName of candidateTabs) {
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json${
+        tabName ? `&sheet=${encodeURIComponent(tabName)}` : ''
+      }`;
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const text = await res.text();
+      const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);/);
+      if (!jsonMatch || !jsonMatch[1]) continue;
+      const data = JSON.parse(jsonMatch[1]);
+      if (data.status !== 'ok' || !data.table) continue;
+
+      const cols: { label?: string; id?: string }[] = data.table.cols || [];
+      const rows: { c?: ({ v?: unknown; f?: string } | null)[] }[] = data.table.rows || [];
+      if (rows.length === 0) continue;
+
+      // Find column with "Nama"
+      let nameColIdx = cols.findIndex((col) => {
+        const label = (col.label || '').toLowerCase();
+        return label.includes('nama');
+      });
+
+      // If not in cols header, check first row
+      if (nameColIdx === -1 && rows.length > 0) {
+        const firstRow = rows[0]?.c || [];
+        nameColIdx = firstRow.findIndex((cell) => {
+          const val = (cell?.v ?? cell?.f ?? '').toString().toLowerCase();
+          return val.includes('nama');
+        });
+      }
+
+      // If dedicated tab, prefer column 0 or detected column
+      const targetCols =
+        nameColIdx >= 0 ? [nameColIdx] : tabName ? [0, 1] : [2, 1, 0];
+      const nameSet = new Set<string>();
+
+      for (let r = 0; r < rows.length; r++) {
+        const row = rows[r]?.c || [];
+        for (const colIdx of targetCols) {
+          const cell = row[colIdx];
+          const val = (cell?.v ?? cell?.f ?? '').toString().trim();
+          if (isValidStudentName(val)) {
+            nameSet.add(val);
+            break;
+          }
+        }
+      }
+
+      const results = Array.from(nameSet).sort((a, b) => a.localeCompare(b, 'id'));
+      if (results.length > 0) {
+        return results;
+      }
+    } catch {
+      // try next tab
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Smart fetch: attempts instant public/shared spreadsheet query first,
+ * or uses authenticated Google Sheets API if accessToken is provided.
+ */
+export async function fetchStudentNamesSmart(
+  spreadsheetId: string,
+  accessToken?: string | null
+): Promise<string[]> {
+  if (
+    !spreadsheetId ||
+    spreadsheetId === 'setoran-ngaji-guru' ||
+    spreadsheetId === 'setoran-ngaji-santri'
+  )
+    return [];
+
+  // 1. Try instant public query (works if sheet is shared or viewable)
+  try {
+    const publicNames = await fetchStudentNamesPublicly(spreadsheetId);
+    if (publicNames.length > 0) return publicNames;
+  } catch {
+    // continue
+  }
+
+  // 2. Try authenticated API if token available
+  if (accessToken) {
+    try {
+      const authNames = await fetchStudentNamesFromSheet(accessToken, spreadsheetId);
+      if (authNames.length > 0) return authNames;
+    } catch {
+      // ignore
+    }
+  }
+
+  return [];
 }
 
 /**

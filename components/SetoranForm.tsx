@@ -18,7 +18,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { SetoranRecord } from '@/lib/googleSheets';
-import { getRecentStudents, addRecentStudent } from '@/lib/storage';
+import { getRecentStudents, addRecentStudent, getAllKnownStudentNames } from '@/lib/storage';
 
 interface SetoranFormProps {
   onSaveSetoran: (record: SetoranRecord) => Promise<boolean>;
@@ -55,14 +55,13 @@ export function SetoranForm({
   const [juzCount, setJuzCount] = useState<number>(1);
   const [halamanCount, setHalamanCount] = useState<number>(1);
 
-  // Combine Google Sheets students with local recent students
+  // Active student list strictly reflects Google Sheets
   const availableStudents = useMemo(() => {
-    const local = getRecentStudents();
-    const combined = [...sheetStudentNames, ...local];
+    const list = sheetStudentNames.length > 0 ? sheetStudentNames : getAllKnownStudentNames();
     const seen = new Set<string>();
     const unique: string[] = [];
-    for (const name of combined) {
-      const clean = name.trim();
+    for (const name of list) {
+      const clean = (name || '').trim();
       if (!clean) continue;
       const key = clean.toLowerCase();
       if (!seen.has(key)) {
@@ -92,6 +91,13 @@ export function SetoranForm({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleOpenDropdown = () => {
+    setIsComboboxOpen(true);
+    if (availableStudents.length === 0 && onRefreshSheetStudents) {
+      onRefreshSheetStudents();
+    }
+  };
 
   // Format current active date into Indonesian string
   const formattedDateTime = useMemo(() => {
@@ -416,23 +422,14 @@ export function SetoranForm({
                 className="flex items-center gap-1.5 text-xs font-bold tracking-tight text-zinc-800"
               >
                 <UserIcon className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
-                <span>Nama *</span>
+                <span>Nama Guru *</span>
               </label>
 
-              {onRefreshSheetStudents && (
-                <button
-                  type="button"
-                  onClick={onRefreshSheetStudents}
-                  disabled={isRefreshingStudents}
-                  className="flex items-center gap-1 text-[10px] font-medium text-emerald-700 hover:text-emerald-800"
-                  title="Perbarui daftar nama dari Google Sheets"
-                >
-                  <RefreshCw
-                    className={`h-2.5 w-2.5 ${isRefreshingStudents ? 'animate-spin' : ''}`}
-                    aria-hidden="true"
-                  />
-                  <span>{isRefreshingStudents ? 'Sinkron...' : 'Muat Nama Sheets'}</span>
-                </button>
+              {isRefreshingStudents && (
+                <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-700">
+                  <RefreshCw className="h-2.5 w-2.5 animate-spin" aria-hidden="true" />
+                  <span>Sinkron otomatis...</span>
+                </span>
               )}
             </div>
 
@@ -444,10 +441,10 @@ export function SetoranForm({
                   type="text"
                   required
                   autoComplete="off"
-                  placeholder="Ketik atau pilih nama..."
+                  placeholder="Ketik atau pilih nama guru..."
                   value={studentName}
-                  onFocus={() => setIsComboboxOpen(true)}
-                  onClick={() => setIsComboboxOpen(true)}
+                  onFocus={handleOpenDropdown}
+                  onClick={handleOpenDropdown}
                   onChange={(e) => {
                     setStudentName(e.target.value);
                     setIsComboboxOpen(true);
@@ -463,18 +460,18 @@ export function SetoranForm({
                       setIsComboboxOpen(true);
                     }}
                     className="absolute right-2 rounded-md p-1 text-zinc-400 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-                    aria-label="Kosongkan nama"
+                    aria-label="Kosongkan nama guru"
                   >
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                 )}
               </div>
 
-              {/* Dropdown Menu - Lists names directly from Google Sheets column Nama */}
+              {/* Dropdown Menu - Lists names directly from Google Sheets tab Daftar Guru */}
               {isComboboxOpen && (
                 <div
                   role="listbox"
-                  aria-label="Daftar nama"
+                  aria-label="Daftar nama guru"
                   className="absolute left-0 right-0 top-full z-40 mt-1 max-h-48 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1 shadow-lg"
                 >
                   {filteredStudents.length > 0 ? (
@@ -482,7 +479,6 @@ export function SetoranForm({
                       {filteredStudents.map((name) => {
                         const isSelected =
                           studentName.trim().toLowerCase() === name.toLowerCase();
-                        const isFromSheet = sheetStudentNames.includes(name);
 
                         return (
                           <button
@@ -508,11 +504,6 @@ export function SetoranForm({
                             </div>
 
                             <div className="flex items-center gap-1.5">
-                              {isFromSheet && (
-                                <span className="text-[9px] text-zinc-500 font-medium">
-                                  Sheet
-                                </span>
-                              )}
                               {isSelected && (
                                 <Check className="h-3 w-3 text-emerald-700" aria-hidden="true" />
                               )}
@@ -523,7 +514,7 @@ export function SetoranForm({
                     </div>
                   ) : (
                     <div className="p-2.5 text-center text-xs text-zinc-500">
-                      Tidak ada nama yang cocok
+                      Tidak ada nama guru yang cocok
                     </div>
                   )}
 

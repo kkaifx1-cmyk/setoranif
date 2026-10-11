@@ -12,6 +12,7 @@ import {
   Info,
 } from 'lucide-react';
 import { SheetMeta } from '@/lib/googleSheets';
+import { DEFAULT_DB_CONFIG, formatEnvSnippet } from '@/lib/dbConfig';
 
 interface SheetConfigModalProps {
   isOpen: boolean;
@@ -32,12 +33,21 @@ export function SheetConfigModal({
 }: SheetConfigModalProps) {
   const [customInput, setCustomInput] = useState<string>('');
   const [copiedId, setCopiedId] = useState<boolean>(false);
+  const [copiedEnv, setCopiedEnv] = useState<boolean>(false);
 
   const handleCopyId = () => {
     if (!sheetMeta) return;
     navigator.clipboard.writeText(sheetMeta.id);
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
+  };
+
+  const handleCopyEnv = () => {
+    if (!sheetMeta) return;
+    const envSnippet = formatEnvSnippet(sheetMeta.id, sheetMeta.title);
+    navigator.clipboard.writeText(envSnippet);
+    setCopiedEnv(true);
+    setTimeout(() => setCopiedEnv(false), 2000);
   };
 
   const handleApplyCustomId = () => {
@@ -112,30 +122,50 @@ export function SheetConfigModal({
               </div>
 
               {sheetMeta ? (
-                <div className="mt-2 space-y-2">
+                <div className="mt-2 space-y-2.5">
                   <div className="text-sm font-bold text-zinc-900">
                     {sheetMeta.title}
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
-                    <span className="truncate font-mono">ID: {sheetMeta.id}</span>
-                    <button
-                      type="button"
-                      onClick={handleCopyId}
-                      className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
-                    >
-                      <Copy className="h-3 w-3" aria-hidden="true" />
-                      <span>{copiedId ? 'Tersalin' : 'Salin ID'}</span>
-                    </button>
+
+                  {/* Highlighted Value & Copy Box */}
+                  <div className="rounded-lg border border-zinc-200 bg-white p-2.5 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-zinc-700">Spreadsheet ID:</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyId}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 cursor-pointer"
+                      >
+                        <Copy className="h-3 w-3" aria-hidden="true" />
+                        <span>{copiedId ? 'Tersalin!' : 'Salin ID'}</span>
+                      </button>
+                    </div>
+                    <div className="font-mono text-xs break-all bg-zinc-50 p-1.5 rounded border border-zinc-100 text-zinc-800">
+                      {sheetMeta.id}
+                    </div>
+
+                    <div className="pt-1 flex items-center justify-between">
+                      <span className="text-[10px] text-zinc-500">Nilai untuk .env:</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyEnv}
+                        className="inline-flex items-center gap-1 rounded bg-emerald-700 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-800 active:scale-95 cursor-pointer shadow-2xs"
+                        title="Salin baris .env lengkap"
+                      >
+                        <Copy className="h-3 w-3" aria-hidden="true" />
+                        <span>{copiedEnv ? 'Format .env Tersalin!' : 'Salin Format .env'}</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="pt-1">
+                  <div className="pt-0.5">
                     <a
                       href={sheetMeta.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 active:scale-95"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
                     >
-                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                      <ExternalLink className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
                       <span>Buka Google Sheets di Tab Baru</span>
                     </a>
                   </div>
@@ -143,10 +173,10 @@ export function SheetConfigModal({
               ) : (
                 <div className="mt-2 space-y-1">
                   <div className="text-sm font-bold text-zinc-900">
-                    Setoran Ngaji Santri
+                    Setoran Ngaji Guru
                   </div>
                   <p className="text-xs text-zinc-500">
-                    Spreadsheet akan otomatis terhubung saat Anda mencatat setoran santri.
+                    Spreadsheet akan otomatis terhubung saat Anda mencatat setoran guru.
                   </p>
                 </div>
               )}
@@ -189,12 +219,24 @@ export function SheetConfigModal({
               </div>
             </div>
 
-            {/* Sheet Info tip */}
-            <div className="mt-3.5 flex items-start gap-2 rounded-lg bg-zinc-100 p-2.5 text-[11px] text-zinc-600">
-              <Info className="h-4 w-4 shrink-0 text-emerald-700 mt-0.5" aria-hidden="true" />
-              <span>
-                Setiap setoran otomatis ditambahkan sebagai baris baru dengan kolom ID, Waktu Input, Nama Santri, Capaian, Ayat/Halaman, dan Pengampu.
-              </span>
+            {/* Sheet Info tip & Where the value comes from */}
+            <div className="mt-3.5 space-y-2 rounded-lg bg-zinc-100 p-2.5 text-[11px] text-zinc-700">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 shrink-0 text-emerald-700 mt-0.5" aria-hidden="true" />
+                <div className="space-y-1">
+                  <p className="font-bold text-zinc-900">Dari mana mendapatkan nilai ID / .env ini?</p>
+                  <p>
+                    <strong>1. Paling Cepat:</strong> Cukup klik tombol <strong>&quot;Salin Format .env&quot;</strong> di kotak atas. Nilai ID diambil langsung dari Google Sheets yang sedang aktif terhubung ke aplikasi saat ini.
+                  </p>
+                  <p>
+                    <strong>2. Dari Link URL:</strong> Jika membuka Google Sheets di browser, nilainya ada di antara <code>/d/</code> dan <code>/edit</code> pada URL:
+                    <br />
+                    <code className="bg-white px-1 py-0.5 rounded border border-zinc-200 text-[10px] text-emerald-800 break-all inline-block mt-0.5">
+                      docs.google.com/spreadsheets/d/<strong>[ID_SPREADSHEET]</strong>/edit
+                    </code>
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="mt-4 flex justify-end">
