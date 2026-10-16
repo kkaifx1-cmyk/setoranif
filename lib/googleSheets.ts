@@ -319,7 +319,15 @@ export async function fetchSetoranRows(
         // New format: [ID, Waktu, Nama, Juz, Halaman, Summary, Recorder, Timestamp]
         juz = parseInt(row[3]?.replace(/\D/g, '') || '0') || 0;
         hal = parseInt(row[4]?.replace(/\D/g, '') || '0') || 0;
-        summary = row[5] || (juz ? `${juz} Juz` : `${hal} Halaman`);
+        summary =
+          row[5] ||
+          (juz && hal
+            ? `${juz} Juz ${hal} Halaman`
+            : juz
+            ? `${juz} Juz`
+            : hal
+            ? `${hal} Halaman`
+            : '0 Juz');
       } else {
         // Old format: [ID, Waktu, Nama, Kategori, Capaian, Detail, Status, Notes, Recorder, Timestamp]
         summary = row[4] ? `${row[4]} ${row[5] || ''}`.trim() : (row[3] || '');

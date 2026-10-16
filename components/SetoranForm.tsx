@@ -50,10 +50,12 @@ export function SetoranForm({
   const comboboxRef = useRef<HTMLDivElement>(null);
   const datePickerModalRef = useRef<HTMLDivElement>(null);
 
-  // 3. Capaian Ngaji: Juz (0-30) vs Halaman (< 1 Juz: 1-19) vs Sedang Halangan
+  // 3. Capaian Ngaji: Juz (0-30) + Opsi Halaman (bila tidak bulat) vs Halaman Saja (< 1 Juz: 1-19) vs Sedang Halangan
   const [capaianType, setCapaianType] = useState<'juz' | 'halaman'>('juz');
   const [juzCount, setJuzCount] = useState<number>(1);
   const [halamanCount, setHalamanCount] = useState<number>(1);
+  const [hasExtraHalaman, setHasExtraHalaman] = useState<boolean>(false);
+  const [extraHalamanCount, setExtraHalamanCount] = useState<number>(1);
   const [isHalangan, setIsHalangan] = useState<boolean>(false);
 
   // Active student list strictly reflects Google Sheets
@@ -191,10 +193,13 @@ export function SetoranForm({
       return 'Sedang Halangan';
     }
     if (capaianType === 'juz') {
+      if (hasExtraHalaman && extraHalamanCount > 0) {
+        return `${juzCount} Juz ${extraHalamanCount} Halaman`;
+      }
       return `${juzCount} Juz`;
     }
     return `${halamanCount} Halaman`;
-  }, [isHalangan, capaianType, juzCount, halamanCount]);
+  }, [isHalangan, capaianType, juzCount, hasExtraHalaman, extraHalamanCount, halamanCount]);
 
   // Toggle checklist sedang halangan (0 Juz)
   const handleToggleHalangan = (checked: boolean) => {
@@ -202,6 +207,7 @@ export function SetoranForm({
     if (checked) {
       setCapaianType('juz');
       setJuzCount(0);
+      setHasExtraHalaman(false);
     } else {
       setJuzCount(1);
     }
@@ -212,6 +218,7 @@ export function SetoranForm({
     if (juzCount === 1) {
       setJuzCount(0);
       setIsHalangan(true);
+      setHasExtraHalaman(false);
     } else if (juzCount > 1) {
       setJuzCount(juzCount - 1);
     }
@@ -237,7 +244,21 @@ export function SetoranForm({
 
     const isRecordHalangan = isHalangan || (capaianType === 'juz' && juzCount === 0);
     const finalJuz = isRecordHalangan ? 0 : capaianType === 'juz' ? Math.max(0, juzCount) : 0;
-    const finalHalaman = isRecordHalangan || capaianType === 'juz' ? 0 : Math.max(1, halamanCount);
+    const finalHalaman = isRecordHalangan
+      ? 0
+      : capaianType === 'juz'
+      ? hasExtraHalaman
+        ? Math.max(1, extraHalamanCount)
+        : 0
+      : Math.max(1, halamanCount);
+
+    const detailText = isRecordHalangan
+      ? 'Sedang Halangan (0 Juz)'
+      : capaianType === 'halaman'
+      ? `${finalHalaman} Halaman`
+      : finalHalaman > 0
+      ? `${finalJuz} Juz ${finalHalaman} Halaman`
+      : `${finalJuz} Juz`;
 
     const newRecord: SetoranRecord = {
       id: `ODOJ-${Date.now().toString(36).toUpperCase()}`,
@@ -250,11 +271,7 @@ export function SetoranForm({
       timestamp: currentDate.toISOString(),
       category: "Al-Qur'an",
       capaian: capaianSummary,
-      detailHalamanAyat: isRecordHalangan
-        ? 'Sedang Halangan (0 Juz)'
-        : capaianType === 'halaman'
-        ? `${finalHalaman} Halaman`
-        : `${finalJuz} Juz`,
+      detailHalamanAyat: detailText,
       status: isRecordHalangan ? 'Halangan' : 'Lancar',
       notes: isRecordHalangan ? 'Sedang halangan / uzur syar\'i' : '',
     };
@@ -266,6 +283,8 @@ export function SetoranForm({
         setIsHalangan(false);
         setJuzCount(1);
       }
+      setHasExtraHalaman(false);
+      setExtraHalamanCount(1);
       try {
         confetti({
           particleCount: 50,
@@ -595,9 +614,7 @@ export function SetoranForm({
               <span className="text-xs font-bold text-emerald-800">
                 {isHalangan || (capaianType === 'juz' && juzCount === 0)
                   ? 'Sedang Halangan (0 Juz)'
-                  : capaianType === 'juz'
-                  ? `${juzCount} Juz`
-                  : `${halamanCount} Halaman`}
+                  : capaianSummary}
               </span>
             </div>
 
@@ -632,64 +649,155 @@ export function SetoranForm({
                 }`}
               >
                 <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Halaman (&lt; 1 Juz)</span>
+                <span>Halaman Saja (&lt; 1 Juz)</span>
               </button>
             </div>
 
             <div className="mt-2.5">
-              {/* Opsi 1: Juz */}
+              {/* Opsi 1: Juz (Bisa ditambah lembar/halaman jika tidak bulat) */}
               {capaianType === 'juz' && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-semibold text-zinc-800">
-                      Jumlah Juz
-                    </span>
-                    <span className="text-[10px] text-zinc-500">
-                      0 – 30 Juz (0 = Halangan)
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50/70 p-1.5">
-                    <button
-                      type="button"
-                      onClick={handleDecrementJuz}
-                      disabled={juzCount <= 0}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-800 shadow-xs transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label="Kurangi 1 Juz"
-                    >
-                      <Minus className="h-4 w-4" aria-hidden="true" />
-                    </button>
-
-                    <div className="flex flex-1 items-center justify-center gap-1.5 select-none py-0.5">
-                      <span className="text-2xl font-black text-zinc-900">
-                        {juzCount}
+                <div className="space-y-2.5">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-zinc-800">
+                        Jumlah Juz
                       </span>
-                      <span className="text-xs font-semibold text-zinc-500">
-                        Juz
+                      <span className="text-[10px] text-zinc-500">
+                        0 – 30 Juz (0 = Halangan)
                       </span>
-                      {(juzCount === 0 || isHalangan) && (
-                        <span className="ml-1 rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
-                          Halangan
-                        </span>
-                      )}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleIncrementJuz}
-                      disabled={juzCount >= 30}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-800 shadow-xs transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label="Tambah 1 Juz"
-                    >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
-                    </button>
+                    <div className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50/70 p-1.5">
+                      <button
+                        type="button"
+                        onClick={handleDecrementJuz}
+                        disabled={juzCount <= 0}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-800 shadow-xs transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Kurangi 1 Juz"
+                      >
+                        <Minus className="h-4 w-4" aria-hidden="true" />
+                      </button>
+
+                      <div className="flex flex-1 items-center justify-center gap-1.5 select-none py-0.5">
+                        <span className="text-2xl font-black text-zinc-900">
+                          {juzCount}
+                        </span>
+                        <span className="text-xs font-semibold text-zinc-500">
+                          Juz
+                        </span>
+                        {(juzCount === 0 || isHalangan) && (
+                          <span className="ml-1 rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
+                            Halangan
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleIncrementJuz}
+                        disabled={juzCount >= 30}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-800 shadow-xs transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Tambah 1 Juz"
+                      >
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Opsi Tambahan Halaman (Bila tilawah melebihi juz genap / tidak bulat) */}
+                  {juzCount > 0 && !isHalangan && (
+                    <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-2.5 transition">
+                      <div className="flex items-center justify-between">
+                        <label
+                          htmlFor="toggle-extra-halaman"
+                          className="flex items-center gap-2.5 cursor-pointer select-none"
+                        >
+                          <div
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                              hasExtraHalaman
+                                ? 'border-emerald-600 bg-emerald-600 text-white'
+                                : 'border-zinc-300 bg-white hover:border-zinc-400'
+                            }`}
+                          >
+                            {hasExtraHalaman && (
+                              <Check className="h-3 w-3 stroke-[3]" aria-hidden="true" />
+                            )}
+                          </div>
+                          <input
+                            id="toggle-extra-halaman"
+                            type="checkbox"
+                            checked={hasExtraHalaman}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setHasExtraHalaman(checked);
+                              if (checked && extraHalamanCount === 0) {
+                                setExtraHalamanCount(1);
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-zinc-800">
+                              Tambah Halaman (Tidak Bulat)
+                            </span>
+                            <p className="text-[10px] text-zinc-500 leading-tight">
+                              Misal: {juzCount} Juz lebih {hasExtraHalaman ? extraHalamanCount : 5} halaman
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+
+                      {hasExtraHalaman && (
+                        <div className="mt-2.5 pt-2 border-t border-emerald-200/60 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-semibold text-emerald-950">
+                              Lebihan Halaman
+                            </span>
+                            <span className="text-[10px] text-emerald-800/80">
+                              1 – 19 Halaman
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white p-1">
+                            <button
+                              type="button"
+                              onClick={() => setExtraHalamanCount((prev) => Math.max(1, prev - 1))}
+                              disabled={extraHalamanCount <= 1}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-800 transition hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                              aria-label="Kurangi Lebihan Halaman"
+                            >
+                              <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+
+                            <div className="flex flex-1 items-center justify-center gap-1 select-none py-0.5">
+                              <span className="text-lg font-black text-zinc-900">
+                                +{extraHalamanCount}
+                              </span>
+                              <span className="text-xs font-semibold text-zinc-500">
+                                Halaman
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setExtraHalamanCount((prev) => Math.min(19, prev + 1))}
+                              disabled={extraHalamanCount >= 19}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-800 transition hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                              aria-label="Tambah Lebihan Halaman"
+                            >
+                              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Opsi 2: Halaman */}
+              {/* Opsi 2: Halaman Saja (< 1 Juz) */}
               {capaianType === 'halaman' && (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="font-semibold text-zinc-800">
                       Jumlah Halaman

@@ -179,7 +179,15 @@ function listSetoran_() {
       studentName: String(r[2] || ''),
       juzCount: parseInt(String(r[3]).replace(/\D/g, ''), 10) || 0,
       halamanCount: parseInt(String(r[4]).replace(/\D/g, ''), 10) || 0,
-      capaianSummary: String(r[5] || ''),
+      capaianSummary:
+        String(r[5] || '') ||
+        (parseInt(String(r[3]).replace(/\D/g, ''), 10) && parseInt(String(r[4]).replace(/\D/g, ''), 10)
+          ? parseInt(String(r[3]).replace(/\D/g, ''), 10) + ' Juz ' + parseInt(String(r[4]).replace(/\D/g, ''), 10) + ' Halaman'
+          : parseInt(String(r[3]).replace(/\D/g, ''), 10)
+          ? parseInt(String(r[3]).replace(/\D/g, ''), 10) + ' Juz'
+          : parseInt(String(r[4]).replace(/\D/g, ''), 10)
+          ? parseInt(String(r[4]).replace(/\D/g, ''), 10) + ' Halaman'
+          : '0 Juz'),
       recorderName: String(r[6] || ''),
       timestamp: String(r[7] || ''),
       rowIndex: idx + 2,
